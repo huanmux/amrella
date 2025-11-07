@@ -4,12 +4,14 @@ easy-to-host social platforms for everyone
 - [x] Post on the feed and customize profiles like X/Twitter
 - [x] Messaging like Telegram/WhatsApp
 - [x] User following/followers
-- [x] User profiles via url parameters (e.g. /?liaotian)
-- [ ] Animated GIFs eligible for profile customization
+- [x] User profiles via url parameters (e.g. [lt.mux8.com/?liaotian](https://lt.mux8.com/?liaotian))
+- [x] Animated GIFs eligible for profile customization
 - [ ] Upload files
 - [ ] Embed links
 - [ ] Create and manage groups
 - [ ] Host audio and video calls
+- [ ] Posting long-form content, e.g. blogs
+- [ ] Custom pages/sections
 
 ### What makes LiaoTian (LT) so special from already existing social media/networking platforms?
 
