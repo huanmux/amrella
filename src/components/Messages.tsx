@@ -1,23 +1,25 @@
 // src/components/Messages.tsx
 import { useEffect, useState, useRef } from 'react';
-import { supabase, Message, Profile } from '../lib/supabase';
+import { supabase, Message, Profile, uploadMedia } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Send, BadgeCheck, Search, ArrowLeft, X, Image } from 'lucide-react'; // Added Image icon
+import { Send, BadgeCheck, Search, ArrowLeft, X, Paperclip, FileText, Link } from 'lucide-react';
 
 export const Messages = () => {
   const [conversations, setConversations] = useState<Profile[]>([]);
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [content, setContent] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [remoteUrl, setRemoteUrl] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
-  const [showImageInput, setShowImageInput] = useState(false); // New state for image URL input visibility
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // REUSABLE CHANNELS
   const typingChannelRef = useRef<any>(null);
   const outgoingTypingChannelRef = useRef<any>(null);
 
@@ -39,7 +41,6 @@ export const Messages = () => {
     window.dispatchEvent(new CustomEvent('navigateToProfile', { detail: profileId }));
   };
 
-  // Load conversations (sorted by latest message)
   const loadConversations = async () => {
     const { data } = await supabase
       .from('messages')
@@ -73,24 +74,23 @@ export const Messages = () => {
   };
 
   useEffect(() => {
-  const handleOpenDM = (e: any) => {
-    const profile = e.detail;
-    if (profile && profile.id !== user?.id) {
-      setSelectedUser(profile);
-      setShowSidebar(false);
-      setSearchQuery('');
-    }
-  };
+    const handleOpenDM = (e: any) => {
+      const profile = e.detail;
+      if (profile && profile.id !== user?.id) {
+        setSelectedUser(profile);
+        setShowSidebar(false);
+        setSearchQuery('');
+      }
+    };
 
-  window.addEventListener('openDirectMessage', handleOpenDM);
-  return () => window.removeEventListener('openDirectMessage', handleOpenDM);
-}, [user]);
+    window.addEventListener('openDirectMessage', handleOpenDM);
+    return () => window.removeEventListener('openDirectMessage', handleOpenDM);
+  }, [user]);
 
   useEffect(() => {
     if (user) loadConversations();
   }, [user]);
 
-  // Search users
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -111,10 +111,8 @@ export const Messages = () => {
     return () => clearTimeout(debounce);
   }, [searchQuery]);
 
-  // Main chat effect
   useEffect(() => {
     if (!selectedUser) {
-      // Cleanup channels when leaving chat
       if (typingChannelRef.current) {
         typingChannelRef.current.unsubscribe();
         typingChannelRef.current = null;
@@ -129,7 +127,6 @@ export const Messages = () => {
     loadMessages(selectedUser.id);
     setShowSidebar(false);
 
-    // === MESSAGE LISTENER ===
     const messageChannel = supabase
       .channel(`messages:${selectedUser.id}`)
       .on(
@@ -143,13 +140,12 @@ export const Messages = () => {
           ) {
             setMessages((prev) => [...prev, msg]);
             scrollToBottom();
-            loadConversations(); // Update order
+            loadConversations();
           }
         }
       )
       .subscribe();
 
-    // === INCOMING TYPING (from other user) ===
     const incomingChannelName = `typing:${selectedUser.id}:${user!.id}`;
     typingChannelRef.current = supabase.channel(incomingChannelName);
 
@@ -161,7 +157,6 @@ export const Messages = () => {
       })
       .subscribe();
 
-    // === OUTGOING TYPING (send to other user) ===
     const outgoingChannelName = `typing:${user!.id}:${selectedUser.id}`;
     outgoingTypingChannelRef.current = supabase.channel(outgoingChannelName);
 
@@ -186,14 +181,11 @@ export const Messages = () => {
     };
   }, [selectedUser, user]);
 
-  // Send typing status (only if channel is ready)
   const sendTypingStatus = async (typing: boolean) => {
     if (!outgoingTypingChannelRef.current) return;
     try {
       await outgoingTypingChannelRef.current.track({ typing });
-    } catch (err) {
-      // Ignore if not subscribed yet
-    }
+    } catch (err) {}
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -214,7 +206,34 @@ export const Messages = () => {
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() && !imageUrl.trim() || !selectedUser) return; // Allow sending *only* an image
+    if (!content.trim() && !file && !remoteUrl.trim() || !selectedUser) return;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    let media_url = null;
+    let media_type = null;
+
+    if (file) {
+      const result = await uploadMedia(file, 'messages', (percent) => {
+        setUploadProgress(percent);
+      });
+      if (!result) {
+        setIsUploading(false);
+        return;
+      }
+      media_url = result.url;
+      media_type = result.type;
+    } else if (remoteUrl.trim()) {
+      media_url = remoteUrl.trim();
+      if (remoteUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
+        media_type = 'image';
+      } else if (remoteUrl.match(/\.(mp4|webm|mov|avi)$/i)) {
+        media_type = 'video';
+      } else {
+        media_type = 'document';
+      }
+    }
 
     sendTypingStatus(false);
     const { data } = await supabase
@@ -223,15 +242,18 @@ export const Messages = () => {
         sender_id: user!.id,
         recipient_id: selectedUser.id,
         content,
-        image_url: imageUrl || null,
+        media_url,
+        media_type,
       })
       .select()
       .single();
 
     if (data) {
       setContent('');
-      setImageUrl('');
-      setShowImageInput(false);
+      setFile(null);
+      setRemoteUrl('');
+      setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -249,9 +271,41 @@ export const Messages = () => {
 
   const displayList = searchQuery ? searchResults : conversations;
 
+  const getPreview = () => {
+    if (file) {
+      const url = URL.createObjectURL(file);
+      if (file.type.startsWith('image/')) {
+        return <img src={url} className="max-h-32 rounded-lg" alt="Preview" />;
+      }
+      if (file.type.startsWith('video/')) {
+        return <video src={url} className="max-h-32 rounded-lg" controls />;
+      }
+      return (
+        <div className="flex items-center gap-2 text-sm">
+          <FileText size={16} />
+          <span>{file.name}</span>
+        </div>
+      );
+    }
+    if (remoteUrl) {
+      if (remoteUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
+        return <img src={remoteUrl} className="max-h-32 rounded-lg" alt="Remote preview" />;
+      }
+      if (remoteUrl.match(/\.(mp4|webm|mov|avi)$/i)) {
+        return <video src={remoteUrl} className="max-h-32 rounded-lg" controls />;
+      }
+      return (
+        <div className="flex items-center gap-2 text-sm">
+          <Link size={16} />
+          <span className="truncate max-w-[150px]">{remoteUrl}</span>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">
-      {/* Sidebar (Conversations List) - Always visible on desktop, conditionally on mobile */}
       <div className={`w-full md:w-96 bg-white border-r border-gray-200 flex-shrink-0 flex flex-col transition-transform duration-300 ease-in-out ${showSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} md:relative fixed inset-y-0 left-0 z-40 md:z-auto`}>
         <div className="p-4 border-b border-gray-200 sticky top-0 bg-white z-10">
           <h2 className="text-3xl font-extrabold text-gray-800 mb-4">Chats</h2>
@@ -279,7 +333,7 @@ export const Messages = () => {
               key={u.id}
               onClick={() => {
                 setSelectedUser(u);
-                setShowSidebar(false); // Hide sidebar on selection for mobile
+                setShowSidebar(false);
                 setSearchQuery('');
               }}
               className={`w-full flex items-center gap-3 p-4 transition border-b border-gray-100 ${selectedUser?.id === u.id ? 'bg-gray-200' : 'hover:bg-gray-100'}`}
@@ -301,11 +355,9 @@ export const Messages = () => {
         </div>
       </div>
 
-      {/* Chat Area - Full width on mobile when sidebar is hidden, fills remaining space on desktop */}
       <div className={`flex-1 flex flex-col bg-white transition-all duration-300 ease-in-out ${selectedUser ? '' : 'hidden md:flex'}`}>
         {selectedUser ? (
           <>
-            {/* Chat Header */}
             <div className="bg-white border-b border-gray-200 p-3 flex items-center gap-3 sticky top-0 z-20 shadow-sm">
               <button onClick={() => setShowSidebar(true)} className="md:hidden p-1 rounded-full hover:bg-gray-100 transition">
                 <ArrowLeft size={24} className="text-gray-600" />
@@ -326,7 +378,6 @@ export const Messages = () => {
               </button>
             </div>
 
-            {/* Message Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-100">
               {messages.map((msg) => (
                 <div
@@ -336,12 +387,31 @@ export const Messages = () => {
                   <div
                     className={`max-w-[80%] md:max-w-[65%] px-3 py-2 rounded-xl shadow-md ${
                       msg.sender_id === user!.id
-                        ? 'bg-orange-500 text-white rounded-br-none' // Custom bubble shape
-                        : 'bg-white text-gray-900 border border-gray-200 rounded-tl-none' // Custom bubble shape
+                        ? 'bg-orange-500 text-white rounded-br-none'
+                        : 'bg-white text-gray-900 border border-gray-200 rounded-tl-none'
                     }`}
                   >
-                    {msg.image_url && (
-                      <img src={msg.image_url} className="mb-2 rounded-lg max-w-full h-auto" alt="Message" />
+                    {msg.media_url && (
+                      <div className="mt-2">
+                        {msg.media_type === 'image' && (
+                          <img src={msg.media_url} className="mb-2 rounded-lg max-w-full h-auto" alt="Message" />
+                        )}
+                        {msg.media_type === 'video' && (
+                          <video controls className="mb-2 rounded-lg max-w-full">
+                            <source src={msg.media_url} />
+                          </video>
+                        )}
+                        {msg.media_type === 'document' && (
+                          <a
+                            href={msg.media_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-sm text-blue-600 underline"
+                          >
+                            <FileText size={14} /> Open File
+                          </a>
+                        )}
+                      </div>
                     )}
                     <p className="whitespace-pre-wrap break-words text-sm">{msg.content}</p>
                     <span
@@ -358,7 +428,6 @@ export const Messages = () => {
                 </div>
               ))}
 
-              {/* OTHER USER TYPING - iMessage/Telegram style typing indicator */}
               {isOtherTyping && (
                 <div className="flex justify-start">
                   <div className="bg-white px-3 py-2 rounded-xl shadow-sm border border-gray-200 rounded-tl-none">
@@ -374,29 +443,68 @@ export const Messages = () => {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area */}
             <form onSubmit={sendMessage} className="p-3 bg-white border-t border-gray-200">
-              {/* Optional: Image URL Input - Visibility toggle */}
-              {showImageInput && (
-                <div className="mb-3">
-                  <input
-                    type="url"
-                    placeholder="Paste Image URL here..."
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+              {(file || remoteUrl) && (
+                <div className="mb-3 p-3 bg-gray-50 rounded-lg flex items-center justify-between">
+                  <div className="flex-1 pr-2">
+                    {getPreview()}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFile(null);
+                      setRemoteUrl('');
+                    }}
+                    className="p-1 hover:bg-gray-200 rounded-full transition"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              )}
+
+              {isUploading && (
+                <div className="mb-3 w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                  <div 
+                    className="bg-orange-500 h-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
               )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*,.pdf,.doc,.docx,.txt"
+                onChange={(e) => {
+                  setFile(e.target.files?.[0] || null);
+                  setRemoteUrl('');
+                }}
+                className="hidden"
+              />
+
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowImageInput(!showImageInput)}
-                  className={`p-2 rounded-full transition ${showImageInput ? 'bg-orange-100 text-orange-600' : 'text-gray-500 hover:bg-gray-100'}`}
-                  title="Attach Image URL"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2 rounded-full text-gray-500 hover:bg-gray-100 transition"
+                  title="Attach file"
                 >
-                  <Image size={24} />
+                  <Paperclip size={24} />
                 </button>
+
+                <div className="flex-1 flex items-center gap-1">
+                  <input
+                    type="url"
+                    value={remoteUrl}
+                    onChange={(e) => {
+                      setRemoteUrl(e.target.value);
+                      setFile(null);
+                    }}
+                    placeholder="Paste media URL..."
+                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-full focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+
                 <input
                   type="text"
                   placeholder="Type a message..."
@@ -404,10 +512,11 @@ export const Messages = () => {
                   onChange={handleInputChange}
                   className="flex-1 px-4 py-2.5 border border-gray-300 rounded-full focus:outline-none focus:border-orange-500 text-base"
                 />
+
                 <button
                   type="submit"
-                  disabled={!content.trim() && !imageUrl.trim()} // Can send message or image alone
-                  className={`p-2 rounded-full transition ${(!content.trim() && !imageUrl.trim()) ? 'bg-gray-300 text-gray-500' : 'bg-orange-500 text-white hover:bg-orange-600'}`}
+                  disabled={isUploading || (!content.trim() && !file && !remoteUrl.trim())}
+                  className={`p-2 rounded-full transition ${isUploading || (!content.trim() && !file && !remoteUrl.trim()) ? 'bg-gray-300 text-gray-500' : 'bg-orange-500 text-white hover:bg-orange-600'}`}
                 >
                   <Send size={24} />
                 </button>
@@ -427,7 +536,6 @@ export const Messages = () => {
         )}
       </div>
 
-      {/* Overlay for mobile when sidebar is open */}
       {showSidebar && !selectedUser && (
         <div onClick={() => setShowSidebar(false)} className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden" />
       )}
