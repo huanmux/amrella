@@ -34,6 +34,7 @@ export const Settings = () => {
     setLoading(false);
     if (!error) {
       document.body.className = `theme-${newTheme}`;
+      await loadProfile();
       setMessage({ type: 'success', text: 'Theme updated!' });
     } else {
       setMessage({ type: 'error', text: 'Failed to update theme.' });
@@ -54,7 +55,7 @@ export const Settings = () => {
     setLoading(false);
     if (!error) {
       setMessage({ type: 'success', text: 'Username updated!' });
-      loadProfile();
+      await loadProfile();
       setNewUsername('');
     } else {
       setMessage({ type: 'error', text: 'Failed to update username.' });
@@ -100,7 +101,7 @@ export const Settings = () => {
       setMessage({ type: 'success', text: 'Verification request submitted!' });
       setReason('');
       setShowApply(false);
-      loadProfile();
+      await loadProfile();
     } else {
       setMessage({ type: 'error', text: 'Failed to submit request.' });
     }
