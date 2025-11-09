@@ -212,7 +212,7 @@ export const Settings = () => {
 
       {/* Verification Section */}
       <section className="bg-white p-6 rounded-xl border border-gray-200">
-        <h2 className="text-lg font-semibold mb-4">Verification</h2>
+        <h2 className="text-lg font-semibold mb-4"><BadgeCheck className="text-blue-500" /> Verification</h2>
         {profile.verified ? (
           <div className="flex items-center gap-2 text-green-600">
             <CheckCircle size={20} />
@@ -223,7 +223,7 @@ export const Settings = () => {
           <div className="text-yellow-600">Pending: {profile.verification_request}</div>
         ) : (
           <>
-            <p className="text-gray-600 mb-4"><BadgeCheck className="text-blue-500" /> Apply for verification badge.</p>
+            <p className="text-gray-600 mb-4"> Apply for verification badge.</p>
             <button
               onClick={() => setShowApply(true)}
               className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
