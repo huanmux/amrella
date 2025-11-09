@@ -74,7 +74,7 @@ export const CustomPage = ({ slug }: CustomPageProps) => {
         </div>
 
         {/* Markdown Content */}
-        <article className="prose prose-invert max-w-none bg-[rgb(var(--color-surface))] p-8 rounded-2xl border border-[rgb(var(--color-border))]">
+        <article className="prose max-w-none bg-[rgb(var(--color-surface))] p-8 rounded-2xl border border-[rgb(var(--color-border))]">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {content}
           </ReactMarkdown>
