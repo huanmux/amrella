@@ -5,6 +5,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { Send, BadgeCheck, Edit3, Image, FileText, X, Paperclip, Link, Heart, MessageCircle } from 'lucide-react';
 
 const FOLLOW_ONLY_FEED = import.meta.env.VITE_FOLLOW_ONLY_FEED === 'true';
+const POST_PAGE_SIZE = 10;
+const LOAD_MORE_DURATION_MS = 5000;
+const LOAD_MORE_INTERVAL_MS = 50;
 
 // Auxiliary types for the new features
 interface Comment {
@@ -57,6 +60,15 @@ export const Feed = () => {
   const [newCommentText, setNewCommentText] = useState('');
   const [isPostingComment, setIsPostingComment] = useState(false);
 
+  // Pagination & Loader State
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
+  const loaderRef = useRef<HTMLDivElement>(null);
+  const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const openLightbox = (url: string, type: 'image' | 'video') => {
     setLightboxMediaUrl(url);
     setLightboxMediaType(type);
@@ -86,27 +98,71 @@ export const Feed = () => {
       .in('entity_id', postIds);
     
     if (data) {
-      setLikedPostIds(new Set(data.map(d => d.entity_id)));
+      setLikedPostIds(prev => new Set([...prev, ...data.map(d => d.entity_id)]));
     }
   };
 
-  const loadPosts = async () => {
+  const buildPostQuery = () => {
     let query = supabase.from('posts').select('*, profiles(*)').order('created_at', { ascending: false });
     if (FOLLOW_ONLY_FEED && user) {
-      const { data: following } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', user.id);
+      // This part requires a join or a function, but for simplicity we'll pre-fetch follows
+      // This is not ideal for performance but matches the previous logic.
+      // A better approach would be an RPC call.
+      return (async () => {
+        const { data: following } = await supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', user.id);
 
-      const followingIds = following?.map(f => f.following_id) || [];
-      const allowedIds = [...followingIds, user.id];
-
-      query = query.in('user_id', allowedIds);
+        const followingIds = following?.map(f => f.following_id) || [];
+        const allowedIds = [...followingIds, user.id];
+        
+        return query.in('user_id', allowedIds);
+      })();
     }
-    const { data } = await query;
+    return Promise.resolve(query);
+  };
+
+  const loadInitialPosts = async () => {
+    setIsLoading(true);
+    setPage(0);
+    
+    let query = await buildPostQuery();
+    const { data } = await query.range(0, POST_PAGE_SIZE - 1);
+    
     const loadedPosts = data || [];
     setPosts(loadedPosts);
-    fetchUserLikes(loadedPosts);
+    setHasMore(loadedPosts.length === POST_PAGE_SIZE);
+    
+    if (loadedPosts.length > 0) {
+      fetchUserLikes(loadedPosts);
+    }
+    setIsLoading(false);
+  };
+
+  const loadMorePosts = async () => {
+    if (isLoadingMore || !hasMore) return;
+
+    setIsLoadingMore(true);
+    setLoadProgress(0); // Reset progress after triggering
+    
+    const nextPage = page + 1;
+    const from = nextPage * POST_PAGE_SIZE;
+    const to = (nextPage + 1) * POST_PAGE_SIZE - 1;
+    
+    let query = await buildPostQuery();
+    const { data } = await query.range(from, to);
+    
+    const newPosts = data || [];
+    
+    if (newPosts.length > 0) {
+      setPosts(prev => [...prev, ...newPosts]);
+      fetchUserLikes(newPosts);
+    }
+    
+    setHasMore(newPosts.length === POST_PAGE_SIZE);
+    setPage(nextPage);
+    setIsLoadingMore(false);
   };
 
   // Handle Likes
@@ -122,7 +178,7 @@ export const Feed = () => {
 
     setPosts(current => current.map(p => {
       if (p.id === post.id) {
-        return { ...p, like_count: isLiked ? (p.like_count - 1) : (p.like_count + 1) };
+        return { ...p, like_count: isLiked ? ((p.like_count || 0) - 1) : ((p.like_count || 0) + 1) };
       }
       return p;
     }));
@@ -185,8 +241,9 @@ export const Feed = () => {
     setIsPostingComment(false);
   };
 
+  // Initial load and subscriptions
   useEffect(() => {
-    loadPosts();
+    loadInitialPosts();
 
     const channel = supabase.channel('public:posts').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
       if (FOLLOW_ONLY_FEED && user) {
@@ -219,6 +276,49 @@ export const Feed = () => {
       window.removeEventListener('scroll', handleScroll);
     };
   }, [user, isExpanded]);
+
+  // "Scroll and hold" Intersection Observer logic
+  useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !isLoadingMore && hasMore) {
+        // Start timer
+        if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+        progressTimerRef.current = setInterval(() => {
+          setLoadProgress(prev => {
+            const increment = (100 / (LOAD_MORE_DURATION_MS / LOAD_MORE_INTERVAL_MS));
+            const next = prev + increment;
+            
+            if (next >= 100) {
+              clearInterval(progressTimerRef.current!);
+              progressTimerRef.current = null;
+              loadMorePosts();
+              return 0;
+            }
+            return next;
+          });
+        }, LOAD_MORE_INTERVAL_MS);
+      } else {
+        // Not intersecting or loading: reset
+        if (progressTimerRef.current) {
+          clearInterval(progressTimerRef.current);
+          progressTimerRef.current = null;
+        }
+        setLoadProgress(0);
+      }
+    }, { threshold: 0.5 }); // Trigger when 50% visible
+
+    if (loaderRef.current && hasMore) {
+      observer.observe(loaderRef.current);
+    }
+
+    return () => {
+      observer.disconnect();
+      if (progressTimerRef.current) {
+        clearInterval(progressTimerRef.current);
+      }
+    };
+  }, [isLoadingMore, hasMore, loadMorePosts]); // Dependencies updated
+
 
   const createPost = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -408,7 +508,13 @@ export const Feed = () => {
       </div>
 
       <div>
-        {posts.length === 0 && (
+        {isLoading && posts.length === 0 && (
+          <div className="text-center py-12 text-[rgb(var(--color-text-secondary))]">
+            Loading posts...
+          </div>
+        )}
+
+        {!isLoading && posts.length === 0 && (
           <div className="text-center py-12 text-[rgb(var(--color-text-secondary))]" >
             {FOLLOW_ONLY_FEED ? 'No posts from people you follow yet.' : 'No posts yet. Be the first!'}
           </div>
@@ -478,7 +584,7 @@ export const Feed = () => {
                     >
                       <Heart size={18} fill={likedPostIds.has(post.id) ? "currentColor" : "none"} />
                     </button>
-                    {(post.like_count > 0) && (
+                    {(post.like_count ?? 0) > 0 && (
                       <button 
                         onClick={(e) => { e.stopPropagation(); openLikesList(post.id); }}
                         className="text-sm text-[rgb(var(--color-text-secondary))] hover:underline"
@@ -495,7 +601,7 @@ export const Feed = () => {
                     >
                       <MessageCircle size={18} />
                     </button>
-                    {(post.comment_count > 0) && (
+                    {(post.comment_count ?? 0) > 0 && (
                       <button 
                         onClick={(e) => { e.stopPropagation(); openCommentsList(post.id); }}
                         className="text-sm text-[rgb(var(--color-text-secondary))] hover:underline"
@@ -510,6 +616,29 @@ export const Feed = () => {
           </div>
         ))}
       </div>
+
+      {/* "Scroll and hold" Loader */}
+      <div ref={loaderRef} className="h-24 py-8">
+        {hasMore && (
+          <div className="flex justify-center items-center h-full">
+            <div className="relative w-72 h-10 bg-[rgb(var(--color-surface-hover))] rounded-full overflow-hidden shadow-inner border border-[rgb(var(--color-border))]">
+              <div 
+                className="absolute top-0 left-0 h-full bg-[rgba(var(--color-accent),1)] transition-all"
+                style={{ width: `${loadProgress}%`, transitionDuration: loadProgress === 0 ? '0ms' : `${LOAD_MORE_INTERVAL_MS}ms` }}
+              />
+              <span className="absolute inset-0 flex items-center justify-center text-sm font-medium text-[rgb(var(--color-text))] z-10">
+                {isLoadingMore ? 'Loading...' : 'Scroll and hold to reveal more'}
+              </span>
+            </div>
+          </div>
+        )}
+        {!hasMore && posts.length > 0 && !isLoading && (
+          <div className="text-center text-[rgb(var(--color-text-secondary))]">
+            {FOLLOW_ONLY_FEED ? 'You have seen all posts from people you follow currently.' : 'You have seen all posts.'}
+          </div>
+        )}
+      </div>
+
 
       {/* Lightbox */}
       {showLightbox && lightboxMediaUrl && (
@@ -641,7 +770,7 @@ export const Feed = () => {
                 <input
                   type="text"
                   value={newCommentText}
-                  onChange={(e) => setNewCommentText(e.target.value)}
+                  onChange={(e) => setNewCommentText(e.g.target.value)}
                   placeholder="Add a comment..."
                   className="flex-1 bg-transparent border-none outline-none text-sm text-[rgb(var(--color-text))]"
                   autoFocus
