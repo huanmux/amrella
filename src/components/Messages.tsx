@@ -2,7 +2,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase, Message, Profile, uploadMedia } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Send, BadgeCheck, Search, ArrowLeft, X, Paperclip, FileText, Link, CornerUpLeft } from 'lucide-react';
+import { Send, BadgeCheck, Search, ArrowLeft, X, Paperclip, FileText, Link, CornerUpLeft, Phone, Video } from 'lucide-react';
+import { Calls } from './Calls'; // <--- ADDED
 
 // Define a type that includes the possible joined reply data
 type AppMessage = Message & {
@@ -29,6 +30,15 @@ export const Messages = () => {
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [mediaInputMode, setMediaInputMode] = useState<'file' | 'url' | null>(null);
+  
+  // --- PAGINATION STATE START ---
+  const [messagePage, setMessagePage] = useState(0);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const MESSAGE_PAGE_SIZE = 10;
+  // --- PAGINATION STATE END ---
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -341,19 +351,90 @@ export const Messages = () => {
     }
   };
 
+  // --- PAGINATION: MODIFIED loadMessages ---
   const loadMessages = async (recipientId: string) => {
-    const { data } = await supabase
+    setMessages([]); // Clear previous chat
+    setMessagePage(0); // Reset page
+    setHasMoreMessages(true); // Assume there are more
+    setIsLoadingMore(false); // Reset loading state
+    
+    const { data, count } = await supabase
       .from('messages')
       // --- FIX: Ensure media_type is selected in the join for reply_to messages ---
-      .select('*, reply_to:messages!reply_to_id(id, content, sender_id, media_type)')
+      .select('*, reply_to:messages!reply_to_id(id, content, sender_id, media_type)', { count: 'exact' })
       .or(
         `and(sender_id.eq.${user!.id},recipient_id.eq.${recipientId}),and(sender_id.eq.${recipientId},recipient_id.eq.${user!.id})`
       )
-      .order('created_at', { ascending: true });
-    setMessages(data as AppMessage[] || []);
+      .order('created_at', { ascending: false }) // Get newest first
+      .range(0, MESSAGE_PAGE_SIZE - 1); // Get page 0 (0-9)
+      
+    setMessages(data ? (data as AppMessage[]).reverse() : []); // Reverse to show oldest first
+    
+    if (!data || data.length < MESSAGE_PAGE_SIZE || (count !== null && count <= MESSAGE_PAGE_SIZE)) {
+      setHasMoreMessages(false);
+    }
+    
     setTimeout(scrollToBottom, 100);
   };
 
+  // --- PAGINATION: NEW loadMoreMessages ---
+  const loadMoreMessages = async () => {
+    if (isLoadingMore || !hasMoreMessages || !selectedUser) return;
+  
+    setIsLoadingMore(true);
+    const nextPage = messagePage + 1;
+    const from = nextPage * MESSAGE_PAGE_SIZE;
+    const to = from + MESSAGE_PAGE_SIZE - 1;
+  
+    const container = messagesContainerRef.current;
+    const oldScrollHeight = container?.scrollHeight;
+    
+    const { data, count } = await supabase
+      .from('messages')
+      .select('*, reply_to:messages!reply_to_id(id, content, sender_id, media_type)', { count: 'exact' })
+      .or(
+        `and(sender_id.eq.${user!.id},recipient_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},recipient_id.eq.${user!.id})`
+      )
+      .order('created_at', { ascending: false })
+      .range(from, to);
+  
+    if (data && data.length > 0) {
+      setMessages(prev => [...(data as AppMessage[]).reverse(), ...prev]); // Prepend older messages
+      setMessagePage(nextPage);
+      
+      // Restore scroll position
+      if (container && oldScrollHeight) {
+        setTimeout(() => {
+          const newScrollHeight = container.scrollHeight;
+          container.scrollTop = newScrollHeight - oldScrollHeight;
+        }, 0); // Wait for DOM to update
+      }
+    }
+  
+    if (!data || data.length < MESSAGE_PAGE_SIZE || (count !== null && messages.length + (data?.length || 0) >= count)) {
+      setHasMoreMessages(false);
+    }
+  
+    setIsLoadingMore(false);
+  };
+  
+  // --- PAGINATION: NEW handleScroll ---
+  const handleScroll = () => {
+    if (messagesContainerRef.current) {
+      const { scrollTop } = messagesContainerRef.current;
+      // Scrolled to top
+      if (scrollTop === 0 && hasMoreMessages && !isLoadingMore) {
+        loadMoreMessages();
+      }
+    }
+  };
+
+  // --- CALLS: NEW dispatchStartCall ---
+  const dispatchStartCall = (targetUser: Profile, type: 'audio' | 'video') => {
+    window.dispatchEvent(new CustomEvent('startCall', { 
+      detail: { targetUser, type }
+    }));
+  };
 
 
   const displayList = searchQuery ? searchResults : conversations;
@@ -393,6 +474,7 @@ export const Messages = () => {
 
   return (
     <div className="flex h-screen mb-[-40] bg-[rgb(var(--color-background))] overflow-hidden">
+      <Calls /> {/* <-- ADDED CALLS COMPONENT */}
       <div className={`w-full md:w-96 bg-[rgb(var(--color-surface))] border-r border-[rgb(var(--color-border))] flex-shrink-0 flex flex-col transition-transform duration-300 ease-in-out ${showSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} md:relative fixed inset-y-0 left-0 z-40 md:z-auto`}>
         <div className="p-4 border-b border-[rgb(var(--color-border))] sticky top-0 bg-[rgb(var(--color-surface))] z-10">
           <h2 className="text-3xl font-extrabold text-[rgb(var(--color-text))] mb-4">Chats</h2>
@@ -489,9 +571,39 @@ export const Messages = () => {
                   </div>
                 </div>
               </button>
+              
+              {/* --- CALL BUTTONS START --- */}
+              <div className="flex gap-1 pr-1">
+                <button
+                  onClick={() => dispatchStartCall(selectedUser, 'audio')}
+                  className="p-2 rounded-full hover:bg-[rgb(var(--color-surface-hover))] transition text-[rgb(var(--color-text-secondary))]"
+                  title="Start audio call"
+                >
+                  <Phone size={20} />
+                </button>
+                <button
+                  onClick={() => dispatchStartCall(selectedUser, 'video')}
+                  className="p-2 rounded-full hover:bg-[rgb(var(--color-surface-hover))] transition text-[rgb(var(--color-text-secondary))]"
+                  title="Start video call"
+                >
+                  <Video size={20} />
+                </button>
+              </div>
+              {/* --- CALL BUTTONS END --- */}
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[rgb(var(--color-background))]">
+            <div 
+              ref={messagesContainerRef}
+              onScroll={handleScroll}
+              className="flex-1 overflow-y-auto p-4 space-y-4 bg-[rgb(var(--color-background))]"
+            >
+              {/* --- PAGINATION: LOADING SPINNER --- */}
+              {isLoadingMore && (
+                <div className="flex justify-center p-4">
+                  <div className="w-6 h-6 border-2 border-[rgb(var(--color-accent))] border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              )}
+            
               {messages.map((msg) => (
                 <div
                   key={msg.id}
