@@ -257,11 +257,8 @@ export const Feed = () => {
 
       if (isAtBottom) {
         setScrollProgress(prev => {
-          // Increment progress. We want 5 seconds total. 
-          // Assuming scroll events fire frequently, we increment slowly.
-          // 100% / (5000ms) * time_between_events. 
-          // Simplified: Increment by 0.5 on every event check.
-          const next = prev + 0.8; 
+          // Increment progress. Increased speed for better UX.
+          const next = prev + 2.5; 
           if (next >= 100) {
             // Trigger load
             setIsLoadingMore(true);
@@ -279,7 +276,7 @@ export const Feed = () => {
         if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
         scrollTimeoutRef.current = setTimeout(() => {
           setScrollProgress(0);
-        }, 200); // Reset if no scroll event for 200ms
+        }, 300); // Increased timeout to prevent accidental reset
       }
     };
 
@@ -591,7 +588,7 @@ export const Feed = () => {
 
       {/* Scroll Breaker & End Message */}
       {posts.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2">
+        <div className="py-8 flex flex-col items-center gap-2 w-full">
           {!hasMorePosts ? (
             <div className="bg-[rgb(var(--color-surface))] border border-[rgb(var(--color-border))] px-4 py-2 rounded-full shadow-lg text-sm text-[rgb(var(--color-text-secondary))]">
               You have seen all posts from people you follow currently.
