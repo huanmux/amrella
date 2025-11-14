@@ -30,6 +30,44 @@ interface Liker {
     verified: boolean;
   };
 }
+// NEW: Constants and functions for URL embedding
+// Regex to check if the content is *only* a URL. Simplistic regex for common URLs.
+const URL_REGEX = /^(?:http(s)?:\/\/)?[\w.-]+(?:\.[\w\.-]+)+[\w\-\._~:/?#[\]@!\$&'\(\)\*\+,;=.]+$/;
+
+const getEmbeddedMedia = (content: string, media_url: string | null) => {
+  if (media_url) return null; // DO NOT embed if post already has media
+
+  const trimmedContent = content.trim();
+  if (URL_REGEX.test(trimmedContent)) {
+    // Check for YouTube URL (for embedding as iframe)
+    const youtubeMatch = trimmedContent.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?.*v=|embed\/|v\/|shorts\/))([\w-]{11})/i);
+
+    if (youtubeMatch && youtubeMatch[1]) {
+      const videoId = youtubeMatch[1];
+      return (
+        <iframe
+          title="Embedded YouTube Video"
+          className="rounded-2xl max-h-96 w-full aspect-video"
+          src={`https://www.youtube.com/embed/${videoId}`}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        ></iframe>
+      );
+    }
+    
+    // For other general links, show a simple link preview component
+    return (
+      <a href={trimmedContent} target="_blank" rel="noopener noreferrer" 
+        className="flex items-center gap-2 p-3 bg-[rgb(var(--color-surface-hover))] rounded-lg text-[rgb(var(--color-text))] hover:bg-[rgb(var(--color-border))] transition inline-flex"
+      >
+        <Link size={20} />
+        {trimmedContent.length > 50 ? trimmedContent.substring(0, 47) + '...' : trimmedContent}
+      </a>
+    );
+  }
+  return null;
+};
 
 // --- PAGINATION START ---
 const POST_PAGE_SIZE = 10;
@@ -89,6 +127,31 @@ export const Feed = () => {
     return diff < 300000; // 5 minutes
   };
 
+  const getPostCounts = useCallback(async (postIds: string[]) => {
+    if (!postIds.length) return { likeCounts: {}, commentCounts: {} };
+
+    const likeCounts: Record<string, number> = {};
+    const commentCounts: Record<string, number> = {};
+
+    for (const postId of postIds) {
+      const [{ count: likeCount }, { count: commentCount }] = await Promise.all([
+        supabase
+          .from('likes')
+          .select('*', { count: 'exact', head: true })
+          .eq('entity_type', 'post')
+          .eq('entity_id', postId),
+        supabase
+          .from('comments')
+          .select('*', { count: 'exact', head: true })
+          .eq('post_id', postId)
+      ]);
+      likeCounts[postId] = likeCount || 0;
+      commentCounts[postId] = commentCount || 0;
+    }
+
+    return { likeCounts, commentCounts };
+  }, []);
+
   const fetchUserLikes = useCallback(async (currentPosts: Post[]) => {
     if (!user || currentPosts.length === 0) return;
     const postIds = currentPosts.map(p => p.id);
@@ -128,14 +191,21 @@ export const Feed = () => {
     const { data } = await query.range(0, POST_PAGE_SIZE - 1);
     
     const loadedPosts = data || [];
-    setPosts(loadedPosts);
+    const postIds = loadedPosts.map(p => p.id);
+    const { likeCounts, commentCounts } = await getPostCounts(postIds);
+    const postsWithCounts = loadedPosts.map(post => ({
+      ...post,
+      like_count: likeCounts[post.id] || 0,
+      comment_count: commentCounts[post.id] || 0,
+    }));
+    setPosts(postsWithCounts);
     
-    if (loadedPosts.length < POST_PAGE_SIZE) {
+    if (postsWithCounts.length < POST_PAGE_SIZE) {
       setHasMorePosts(false);
     }
     
-    fetchUserLikes(loadedPosts);
-  }, [user, fetchUserLikes]);
+    fetchUserLikes(postsWithCounts);
+  }, [user, fetchUserLikes, getPostCounts]);
   
   // --- NEW: Load more posts for infinite scroll
   const loadMorePosts = useCallback(async () => {
@@ -163,16 +233,23 @@ export const Feed = () => {
     const { data } = await query.range(from, to);
     
     const newPosts = data || [];
-    setPosts(current => [...current, ...newPosts]);
+    const newPostIds = newPosts.map(p => p.id);
+    const { likeCounts, commentCounts } = await getPostCounts(newPostIds);
+    const newPostsWithCounts = newPosts.map(post => ({
+      ...post,
+      like_count: likeCounts[post.id] || 0,
+      comment_count: commentCounts[post.id] || 0,
+    }));
+    setPosts(current => [...current, ...newPostsWithCounts]);
     setPostPage(nextPage);
     
     if (newPosts.length < POST_PAGE_SIZE) {
       setHasMorePosts(false);
     }
     
-    fetchUserLikes(newPosts);
+    fetchUserLikes(newPostsWithCounts);
     setIsLoadingMorePosts(false);
-  }, [isLoadingMorePosts, hasMorePosts, postPage, user, fetchUserLikes]);
+  }, [isLoadingMorePosts, hasMorePosts, postPage, user, fetchUserLikes, getPostCounts]);
 
   // Handle Likes - MODIFIED LOGIC
   const handleInitialLike = async (post: Post) => {
@@ -275,11 +352,11 @@ export const Feed = () => {
   useEffect(() => {
     loadPosts();
 
-    const channel = supabase.channel('public:posts').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
+    const channel = supabase.channel('feed-updates').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
       if (FOLLOW_ONLY_FEED && user) {
         if (payload.new.user_id === user.id) {
           const { data } = await supabase.from('posts').select('*, profiles(*)').eq('id', payload.new.id).single();
-          if (data) setPosts(current => [data, ...current]);
+          if (data) setPosts(current => [{ ...data, like_count: 0, comment_count: 0 }, ...current]);
           return;
         }
 
@@ -292,7 +369,25 @@ export const Feed = () => {
         if (!followData?.length) return;
       }
       const { data } = await supabase.from('posts').select('*, profiles(*)').eq('id', payload.new.id).single();
-      if (data) setPosts(current => [data, ...current]);
+      if (data) setPosts(current => [{ ...data, like_count: 0, comment_count: 0 }, ...current]);
+    }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: 'entity_type=eq.post' }, (payload) => {
+      if (payload.new.user_id === user?.id) return;
+      const postId = payload.new.entity_id;
+      setPosts(current => current.map(p =>
+        p.id === postId ? { ...p, like_count: (p.like_count || 0) + 1 } : p
+      ));
+    }).on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes', filter: 'entity_type=eq.post' }, (payload) => {
+      if (payload.old.user_id === user?.id) return;
+      const postId = payload.old.entity_id;
+      setPosts(current => current.map(p =>
+        p.id === postId ? { ...p, like_count: Math.max(0, (p.like_count || 0) - 1) } : p
+      ));
+    }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, (payload) => {
+      if (payload.new.user_id === user?.id) return;
+      const postId = payload.new.post_id;
+      setPosts(current => current.map(p =>
+        p.id === postId ? { ...p, comment_count: (p.comment_count || 0) + 1 } : p
+      ));
     }).subscribe();
 
     return () => {
@@ -566,6 +661,12 @@ export const Feed = () => {
                   <span className="text-[rgb(var(--color-text-secondary))] text-sm">· {new Date(post.created_at).toLocaleDateString()} at {formatTime(post.created_at)}</span>
                 </div>
                 <p className="mt-1 whitespace-pre-wrap break-words text-[rgb(var(--color-text))]" >{post.content}</p>
+                {/* NEW: Embed Link if detected and no media is attached */}
+                  {getEmbeddedMedia(post.content, post.media_url) && (
+                      <div className="mt-3">
+                          {getEmbeddedMedia(post.content, post.media_url)}
+                      </div>
+                  )}
                 {post.media_url && (
                   <div className="mt-3">
                     {post.media_type === 'image' && (
@@ -608,7 +709,7 @@ export const Feed = () => {
                     >
                       <Heart size={18} fill={likedPostIds.has(post.id) ? "currentColor" : "none"} />
                     </button>
-                    {(post.like_count > 0) && (
+                    {post.like_count > 0 && (
                       <button 
                         onClick={(e) => { e.stopPropagation(); openLikesList(post.id); }}
                         className="text-sm text-[rgb(var(--color-text-secondary))] hover:underline"
@@ -625,7 +726,7 @@ export const Feed = () => {
                     >
                       <MessageCircle size={18} />
                     </button>
-                    {(post.comment_count > 0) && (
+                    {post.comment_count > 0 && (
                       <button 
                         onClick={(e) => { e.stopPropagation(); openCommentsList(post.id); }}
                         className="text-sm text-[rgb(var(--color-text-secondary))] hover:underline"
