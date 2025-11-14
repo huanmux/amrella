@@ -46,26 +46,12 @@ interface Liker {
  * @returns A Promise that resolves to the cropped Blob or null on failure.
  */
 const getCroppedImageBlob = (imageFile: File, type: 'avatar' | 'banner', scale: number): Promise<Blob | null> => {
-  // NEW: Validate scale early (prevent Inf/NaN from bad state)
-  if (!isFinite(scale) || scale <= 0) {
-    console.error('Invalid scale:', scale);
-    alert('Invalid zoom level. Please try again.');
-    return Promise.resolve(null);
-  }
-
   return new Promise((resolve) => {
     const image = new Image();
     const reader = new FileReader();
 
     reader.onload = (e) => {
       image.onload = () => {
-        // NEW: Check for valid image dimensions (handles corrupted/broken images or load failures)
-        if (image.naturalWidth === 0 || image.naturalHeight === 0) {
-          console.error("Invalid image: Zero dimensions detected (possibly corrupted or wrong format). File:", imageFile.name);
-          alert("Invalid image file. Please select a valid image (e.g., JPG, PNG).");
-          return resolve(null);
-        }
-
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
 
@@ -82,25 +68,23 @@ const getCroppedImageBlob = (imageFile: File, type: 'avatar' | 'banner', scale: 
         canvas.width = targetWidth;
         canvas.height = targetHeight;
 
-        // Use natural dimensions for accuracy
-        const imgWidth = image.naturalWidth;
-        const imgHeight = image.naturalHeight;
-        const imageAspect = imgWidth / imgHeight;
+        // Determine the largest possible crop area within the source image
+        const imageAspect = image.width / image.height;
         const cropAspect = canvas.width / canvas.height;
         let sx, sy, sWidth, sHeight;
 
         if (imageAspect > cropAspect) {
             // Image is wider than crop area (cut left/right)
-            sHeight = imgHeight;
-            sWidth = imgHeight * cropAspect;
-            sx = (imgWidth - sWidth) / 2;
+            sHeight = image.height;
+            sWidth = image.height * cropAspect;
+            sx = (image.width - sWidth) / 2;
             sy = 0;
         } else {
             // Image is taller than crop area (cut top/bottom)
-            sWidth = imgWidth;
-            sHeight = imgWidth / cropAspect;
+            sWidth = image.width;
+            sHeight = image.width / cropAspect;
             sx = 0;
-            sy = (imgHeight - sHeight) / 2;
+            sy = (image.height - sHeight) / 2;
         }
 
         // Apply Zoom (Scale): The crop area in the source image is scaled down by the 'scale' factor.
@@ -111,44 +95,33 @@ const getCroppedImageBlob = (imageFile: File, type: 'avatar' | 'banner', scale: 
         sHeight *= inverseScale;
         
         // Re-center the crop area after scaling
-        sx = imgWidth / 2 - sWidth / 2;
-        sy = imgHeight / 2 - sHeight / 2;
+        sx = image.width / 2 - sWidth / 2;
+        sy = image.height / 2 - sHeight / 2;
 
         // Ensure crop area is within image bounds (clamping)
+        // If the scaled crop area (sWidth/sHeight) exceeds the image bounds, clamp it.
+        // For simplicity with center crop, we trust the scale is reasonable, but we ensure it doesn't start before 0.
         sx = Math.max(0, sx);
         sy = Math.max(0, sy);
-
-        // NEW: Final safeguard against NaN/Infinity/negative (logs params for debug)
-        if (!isFinite(sx) || !isFinite(sy) || !isFinite(sWidth) || !isFinite(sHeight) || sWidth <= 0 || sHeight <= 0) {
-          console.error("Invalid crop parameters:", { sx, sy, sWidth, sHeight, imgWidth, imgHeight, scale });
-          alert("Crop calculation failed. Please try a different image or zoom level.");
-          return resolve(null);
-        }
-
-        // Draw (safe now)
+        
+        // Final Draw: draw the calculated section (sx, sy, sWidth, sHeight) 
+        // onto the entire canvas (0, 0, targetWidth, targetHeight)
         ctx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
 
         // Convert canvas to Blob
         canvas.toBlob((blob) => {
-          if (blob) {
-            resolve(blob);
-          } else {
-            console.error("Failed to create Blob from canvas.");
-            resolve(null);
-          }
+          resolve(blob);
         }, imageFile.type, 0.95); // Quality 0.95
 
       };
       image.onerror = () => {
-        console.error("Error loading image for cropping. File:", imageFile.name);
-        alert("Failed to load image. Please select a valid file.");
+        console.error("Error loading image for cropping.");
         resolve(null);
       };
       image.src = e.target?.result as string;
     };
     reader.onerror = () => {
-      console.error("Error reading file for cropping. File:", imageFile.name);
-      alert("Failed to read file. Please try again.");
+      console.error("Error reading file for cropping.");
       resolve(null);
     };
     reader.readAsDataURL(imageFile);
@@ -262,7 +235,7 @@ export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; on
    * Helper function to handle direct upload of files (like GIFs) that don't need cropping.
    */
   const handleDirectUpload = async (file: File, type: 'avatar' | 'banner') => {
-    setIsCropping(true);
+    setIsCropping(true); 
     try {
         const result = await uploadMedia(file, 'profiles');
         if (result) {
@@ -365,7 +338,7 @@ export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; on
   /**
    * Social Functions (Copied/Adapted from Feed.tsx)
    */
-  const fetchUserLikes = async (currentPosts: Post[]) => {
+  const fetchUserLikes = useCallback(async (currentPosts: Post[]) => {
     if (!user || currentPosts.length === 0) return;
     const postIds = currentPosts.map(p => p.id);
     const { data } = await supabase
@@ -382,7 +355,7 @@ export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; on
         return newSet;
       });
     }
-  }; // Added user dependency
+  }, [user]); // Added user dependency
 
   const handleToggleLike = async (post: Post) => {
     if (!user) return;
@@ -476,7 +449,8 @@ export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; on
    */
 
 
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
+    if (!targetUserId) return;
     const { data } = await supabase
       .from('profiles')
       .select('*')
@@ -486,13 +460,13 @@ export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; on
     if (data) {
       setDisplayName(data.display_name);
       setBio(data.bio || '');
-      setBioLink(data.bio_link || '');
+      setBioLink(data.bio_link || ''); // NEW
       setAvatarUrl(data.avatar_url || '');
       setBannerUrl(data.banner_url || '');
     }
-  };
+  }, [targetUserId]);
 
-  const loadPosts = async () => {
+  const loadPosts = useCallback(async () => {
     if (!targetUserId) return;
     const { data } = await supabase
       .from('posts')
@@ -502,10 +476,10 @@ export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; on
     const loadedPosts = data || [];
     setPosts(loadedPosts);
     fetchUserLikes(loadedPosts); // NEW: Fetch likes for loaded posts
-  };
+  }, [targetUserId, fetchUserLikes]);
   
   // --- NEW: Load Liked Posts ---
-  const loadLikedPosts = async () => {
+  const loadLikedPosts = useCallback(async () => {
     if (!targetUserId) return;
     
     setIsLoadingLikes(true);
@@ -540,9 +514,9 @@ export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; on
     
     setIsLikesLoaded(true);
     setIsLoadingLikes(false);
-  };
+  }, [targetUserId, fetchUserLikes]);
 
-  const loadFollowStats = async () => {
+  const loadFollowStats = useCallback(async () => {
     if (!targetUserId) return;
     const { count: followers } = await supabase
       .from('follows')
@@ -556,9 +530,9 @@ export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; on
 
     setFollowerCount(followers || 0);
     setFollowingCount(followingC || 0);
-  };
+  }, [targetUserId]);
 
-  const checkFollowing = async () => {
+  const checkFollowing = useCallback(async () => {
     if (!user || !targetUserId) return;
     const { data } = await supabase
       .from('follows')
@@ -567,7 +541,7 @@ export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; on
       .eq('following_id', targetUserId)
       .maybeSingle();
     setIsFollowing(!!data);
-  };
+  }, [user, targetUserId]);
 
   useEffect(() => {
     if (targetUserId) {
@@ -934,7 +908,7 @@ export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; on
               </div>
               <p className="text-[rgb(var(--color-text-secondary))]">@{profile.username}</p>
               {profile.bio && <p className="mt-3 text-[rgb(var(--color-text))]">{profile.bio}</p>}
-              <div className="mt-4 flex gap-8 text-sm">
+              <div className="mt-4 flex gap-8 items-center text-sm"> {/* UPDATED: added items-center */}
                 <button onClick={openFollowing} className="hover:underline text-[rgb(var(--color-text))]">
                   <strong className="text-lg">{followingCount}</strong> <span className="text-[rgb(var(--color-text-secondary))]">Following</span>
                 </button>
