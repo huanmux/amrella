@@ -52,6 +52,13 @@ const getCroppedImageBlob = (imageFile: File, type: 'avatar' | 'banner', scale: 
 
     reader.onload = (e) => {
       image.onload = () => {
+        // NEW: Check for valid image dimensions (handles corrupted/broken images)
+        if (image.naturalWidth === 0 || image.naturalHeight === 0) {
+          console.error("Invalid image: Zero dimensions detected (possibly corrupted or wrong format).");
+          alert("Invalid image file. Please select a valid image.");
+          return resolve(null);
+        }
+
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
 
@@ -103,6 +110,12 @@ const getCroppedImageBlob = (imageFile: File, type: 'avatar' | 'banner', scale: 
         // For simplicity with center crop, we trust the scale is reasonable, but we ensure it doesn't start before 0.
         sx = Math.max(0, sx);
         sy = Math.max(0, sy);
+        
+        // NEW: Additional safeguard against NaN/Infinity (redundant with dimension check, but safe)
+        if (!isFinite(sx) || !isFinite(sy) || !isFinite(sWidth) || !isFinite(sHeight) || sWidth <= 0 || sHeight <= 0) {
+          console.error("Invalid crop parameters detected.");
+          return resolve(null);
+        }
         
         // Final Draw: draw the calculated section (sx, sy, sWidth, sHeight) 
         // onto the entire canvas (0, 0, targetWidth, targetHeight)
