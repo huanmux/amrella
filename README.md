@@ -2,7 +2,7 @@
 easy-to-host social platforms for everyone
 
 ```
-Current version: 1.0.7
+Current version: 1.0.7A
 ```
 
 ### What makes LiaoTian (LT) so special from already existing social media/networking platforms?
@@ -60,6 +60,9 @@ If you just want to create an account on **LiaoTian** (our official deployment) 
 - [ ] removing a follower from own Profile doesn't make changes to database for some reason
 - [ ] Messaging section soft errors (406, 4XX)
 - [ ] clicking on chat button couldn't utilize the url param for user to directly open conversation with someone
+- [ ] message replies don't show text content for some reason
+- [ ] audio and video calling may require a turn server
+- [ ] likes and comments count not showing up directly on Feed and Profile
 
 ---
 
