@@ -11,8 +11,9 @@ import { CustomPage } from './components/CustomPage';
 import { Home, MessageSquare, User, LogOut, Search as SearchIcon } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom';
+import { Stats } from './components/Stats';
 
-type ViewType = 'feed' | 'messages' | 'profile' | 'settings' | 'page';
+type ViewType = 'feed' | 'messages' | 'profile' | 'settings' | 'page' | 'stats'; 
 
 const Main = () => {
   const [view, setView] = useState<ViewType>('feed');
@@ -70,6 +71,15 @@ const Main = () => {
       return;
     }
 
+    // Handle the unlisted /stats slug
+    if (path === '/stats') {
+      setView('stats');
+      setPageSlug('');
+      setSelectedProfileId(undefined);
+      return;
+    }
+
+    // Handle generic custom pages (like /about)
     const match = path.match(/^\/([a-zA-Z0-9-]+)$/);
     if (match) {
       const slug = match[1];
@@ -79,7 +89,7 @@ const Main = () => {
       return;
     }
 
-    // Fallback to feed
+    // Fallback to feed for unmatched paths
     setView('feed');
     setPageSlug('');
   }, [location.pathname]);
@@ -135,10 +145,22 @@ const Main = () => {
     );
   }
 
-  // === RENDER CUSTOM PAGE ===
+  // === RENDER CUSTOM PAGE / STATS PAGE ===
   if (view === 'page' && pageSlug) {
     return <CustomPage slug={pageSlug} />;
   }
+  
+  // STATS page is protected by checking if user exists
+  if (view === 'stats' && user) {
+      return <Stats />;
+  }
+  
+  // If user is trying to access stats without being logged in
+  if (view === 'stats' && !user) {
+    // Redirect to login/auth page
+    setView('feed'); 
+  }
+
 
   // === NOT LOGGED IN? SHOW AUTH OR PUBLIC PROFILE ===
   if (!user || !profile) {
@@ -249,6 +271,7 @@ const Main = () => {
         )}
         {view === 'settings' && <Settings />}
         {showSearch && <Search onClose={() => setShowSearch(false)} />}
+        {view === 'stats' && user && <Stats />}
       </main>
       {view !== 'messages' && (
         <footer className="text-center text-[rgb(var(--color-text-secondary))] text-xs py-4 border-t border-[rgb(var(--color-border))] bg-[rgb(var(--color-surface))]">
