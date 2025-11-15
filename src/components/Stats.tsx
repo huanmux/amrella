@@ -246,7 +246,6 @@ export const Stats: React.FC = () => {
             </div>
         </div>
     );
-  };
 
 
   const tableStats = stats.filter(s => s.type === 'count');
