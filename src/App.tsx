@@ -24,10 +24,6 @@ const Main = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const handleMessageUser = (profile: Profile) => {
-    navigate(`/message?username=${profile.username}`);
-  };
-
   // Set theme from profile
   useEffect(() => {
     if (profile?.theme) {
@@ -35,58 +31,37 @@ const Main = () => {
     }
   }, [profile?.theme]);
 
-  // === URL ROUTING (via /user?, /message?, and ?username) ===
+  // === URL PROFILE LOOKUP (via ?username) ===
   useEffect(() => {
     const checkUrlForProfile = async () => {
-      const path = window.location.pathname.toLowerCase();
       const search = window.location.search;
-      const urlParams = new URLSearchParams(search);
-
-      let username: string | null = null;
-      let action: 'profile' | 'message' | null = null;
+      const username = search.startsWith('?') ? search.slice(1) : search;
       
-      // New /user?username=...
-      if (path === '/user') {
-          username = urlParams.get('username');
-          if (username) action = 'profile';
-      // New /message?username=...
-      } else if (path === '/message') {
-          username = urlParams.get('username');
-          if (username) action = 'message';
+      // Path check to allow /?username and /user?username
+      const path = window.location.pathname;
+      if (path !== '/' && path !== '/user') {
+          return; // Let page routing handle other paths
       }
-      
-      // Existing /?username logic
-      if (!username && path === '/') {
-        const potentialUsername = search.startsWith('?') ? search.slice(1) : search;
 
-        // Check if it looks like an old-style username query
-        if (potentialUsername && !potentialUsername.includes('/') && !potentialUsername.includes('.')) {
-            username = potentialUsername;
-            action = 'profile';
+      if (!username || username.includes('/') || username.includes('.')) {
+        // Only return if there's no username; if there is, we want to show the profile
+        // If we are on '/' and no username, page routing will handle it.
+        // If we are on '/user' and no username, page routing will handle it.
+        if (!username) {
+            return; 
         }
       }
 
-      if (!username) {
-        return; // Let page routing or other logic handle paths
-      }
-      
       try {
         const { data } = await supabase
           .from('profiles')
-          .select('id, username, display_name, avatar_url, verified, last_seen') // Select more profile data for messaging
+          .select('id')
           .eq('username', username.toLowerCase())
           .single();
 
         if (data) {
           setSelectedProfileId(data.id);
-          
-          if (action === 'profile') {
-            setView('profile');
-          } else if (action === 'message') {
-            setView('messages');
-            // Dispatch a custom event to the Messages component to open the chat
-            window.dispatchEvent(new CustomEvent('openDirectMessage', { detail: data }));
-          }
+          setView('profile');
         }
       } catch (err) {
         // Ignore — not a profile
@@ -96,15 +71,76 @@ const Main = () => {
     checkUrlForProfile();
     window.addEventListener('popstate', checkUrlForProfile);
     return () => window.removeEventListener('popstate', checkUrlForProfile);
-  }, []);
+  }, []); // Note: This still only runs once, but the logic inside now checks the path.
 
   // === CUSTOM PAGE ROUTING (via /slug) ===
   useEffect(() => {
     const path = location.pathname;
-    if (path === '/' || path === '') {
-      setView('feed');
-      setPageSlug('');
-      return;
+    const search = location.search;
+    
+    // Check for profile paths (/ and /user)
+    if (path === '/' || path === '/user') {
+        const username = search.startsWith('?') ? search.slice(1) : search;
+        // If a username is present, the Profile lookup useEffect will handle it.
+        // We just need to ensure we don't clobber it by setting view to 'feed'.
+        if (username && !username.includes('/') && !username.includes('.')) {
+            // Profile lookup is running or will run. Don't set view('feed').
+            return;
+        }
+        
+        // If no username, set view to feed.
+        setView('feed');
+        setPageSlug('');
+        setSelectedProfileId(undefined); // Ensure no profile is selected
+        return;
+    }
+    
+    // Handle /message?username
+    if (path === '/message') {
+        const username = search.startsWith('?') ? search.slice(1) : search;
+        if (username && !username.includes('/') && !username.includes('.')) {
+            const lookupAndMessage = async () => {
+                try {
+                    // Check if user is logged in
+                    if (!user) {
+                         // Optional: redirect to login or show auth
+                         // For now, just go to feed.
+                         setView('feed');
+                         return;
+                    }
+                    const { data } = await supabase
+                        .from('profiles')
+                        .select('*') // Need full profile object
+                        .eq('username', username.toLowerCase())
+                        .single();
+                    
+                    if (data) {
+                        setView('messages');
+                        setSelectedProfileId(undefined);
+                        // This event is heard by Messages.tsx
+                        window.dispatchEvent(new CustomEvent('openDirectMessage', { detail: data }));
+                    } else {
+                        // No user found, default to feed
+                        setView('feed');
+                    }
+                } catch (err) {
+                    setView('feed');
+                }
+            };
+            lookupAndMessage();
+            return; // Stop processing
+        }
+        
+        // If no username, and user is logged in, go to messages main
+        if (user) {
+            setView('messages');
+            setSelectedProfileId(undefined);
+            return;
+        }
+        
+        // If no username and not logged in, go to feed (which will show Auth)
+        setView('feed');
+        return;
     }
 
     // Handle the unlisted /stats slug
@@ -119,6 +155,13 @@ const Main = () => {
     const match = path.match(/^\/([a-zA-Z0-9-]+)$/);
     if (match) {
       const slug = match[1];
+      // Do not treat 'user' as a custom page
+      if (slug === 'user') {
+          setView('feed'); // Or some error/redirect
+          setPageSlug('');
+          setSelectedProfileId(undefined);
+          return;
+      }
       setView('page');
       setPageSlug(slug);
       setSelectedProfileId(undefined);
@@ -128,7 +171,8 @@ const Main = () => {
     // Fallback to feed for unmatched paths
     setView('feed');
     setPageSlug('');
-  }, [location.pathname]);
+    setSelectedProfileId(undefined);
+  }, [location.pathname, location.search, user]); // Added location.search and user
 
   // Keep internal navigation working
   useEffect(() => {
@@ -211,6 +255,10 @@ const Main = () => {
         </div>
       );
     }
+    // If trying to message while not logged in, show Auth
+    if (view === 'messages') {
+        return <Auth />;
+    }
     return <Auth />;
   }
 
@@ -255,6 +303,7 @@ const Main = () => {
               onClick={() => {
                 setView('messages');
                 setSelectedProfileId(undefined);
+                navigate('/message'); // Navigate to /message base
               }}
               className={`p-3 rounded-full transition ${
                 view === 'messages' ? 'bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))]' : 'hover:bg-[rgb(var(--color-surface-hover))]'
