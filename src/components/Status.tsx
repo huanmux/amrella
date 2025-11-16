@@ -79,7 +79,16 @@ export const StatusTray: React.FC = () => {
     return () => clearInterval(interval);
   }, [user]);
 
-  const handleOwnClick = () => {
+  const handleOwnAvatarClick = () => {
+    if (ownStatus) {
+      window.dispatchEvent(new CustomEvent('openStatusViewer', { detail: { userId: user.id } }));
+    } else {
+      window.dispatchEvent(new CustomEvent('openStatusCreator'));
+    }
+  };
+
+  const handleOwnPlusClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     window.dispatchEvent(new CustomEvent('openStatusCreator'));
   };
 
@@ -93,7 +102,7 @@ export const StatusTray: React.FC = () => {
       {/* Own Circle */}
       <div className="flex flex-col items-center space-y-1 flex-shrink-0">
         <div 
-          onClick={handleOwnClick}
+          onClick={handleOwnAvatarClick}
           className="relative w-16 h-16 rounded-full border-2 border-dashed cursor-pointer group"
           style={{ borderColor: 'rgb(var(--color-border))' }}
         >
@@ -102,11 +111,12 @@ export const StatusTray: React.FC = () => {
             className="w-full h-full rounded-full object-cover"
             alt="Your avatar"
           />
-          {!ownStatus && (
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-[rgb(var(--color-primary))] rounded-full flex items-center justify-center group-hover:scale-110 transition">
-              <Plus size={12} className="text-white" />
-            </div>
-          )}
+          <div 
+            onClick={handleOwnPlusClick}
+            className="absolute -bottom-1 -right-1 w-6 h-6 bg-[rgb(var(--color-primary))] rounded-full flex items-center justify-center group-hover:scale-110 transition cursor-pointer"
+          >
+            <Plus size={12} className="text-white" />
+          </div>
           {ownStatus && (
             <svg className="absolute inset-0 w-full h-full pointer-events-none">
               <defs>
@@ -292,7 +302,7 @@ const StatusCreator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       const { error } = await supabase
         .from('statuses')
         .insert({
-          user_id: user.id,  // <-- FIX: Explicitly set user_id to satisfy RLS policy
+          user_id: user.id,
           media_url: uploadResult.url,
           media_type: mediaType,
           text_overlay: textOverlay.text ? textOverlay : {},
@@ -317,14 +327,14 @@ const StatusCreator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   return (
     <div className="fixed inset-0 z-[1000] bg-black flex items-center justify-center p-4" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}>
       <div className="bg-[rgb(var(--color-surface))] rounded-2xl p-4 w-full max-w-md max-h-[90vh] overflow-y-auto relative">
-        <button onClick={onClose} className="absolute top-2 right-2 p-1 hover:bg-[rgb(var(--color-surface-hover))] rounded-full">
-          <X size={20} className="text-[rgb(var(--color-text))]" />
+        <button onClick={onClose} className="absolute top-2 right-2 p-1 hover:bg-[rgb(var(--color-surface-hover))]">
+          <X size={20} />
         </button>
 
         {step === 'capture' && (
           <div className="space-y-4">
-            <h2 className="text-lg font-bold text-center text-[rgb(var(--color-text))]">Create Status</h2>
-            <video ref={videoRef} className="w-full h-48 object-cover rounded bg-black" autoPlay muted playsInline />
+            <h2 className="text-lg font-bold text-center">Create Status</h2>
+            <video ref={videoRef} className="w-full h-48 object-cover rounded" autoPlay muted />
             <div className="flex space-x-2">
               <button onClick={capturePhoto} className="flex-1 p-3 bg-[rgb(var(--color-primary))] text-white rounded-lg flex items-center justify-center space-x-2">
                 <Camera size={20} /> <span>Photo</span>
@@ -347,17 +357,17 @@ const StatusCreator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
         {step === 'edit' && (
           <div className="space-y-4">
-            <h2 className="text-lg font-bold text-center text-[rgb(var(--color-text))]">Edit Status</h2>
-            <div ref={editorRef} className="relative w-full h-64 bg-black rounded overflow-hidden" style={{ position: 'relative' }}>
+            <h2 className="text-lg font-bold text-center">Edit Status</h2>
+            <div ref={editorRef} className="relative w-full h-64 bg-black rounded overflow-hidden cursor-move" style={{ position: 'relative' }}>
               {mediaType === 'image' && mediaBlob && (
                 <img src={URL.createObjectURL(mediaBlob)} className="w-full h-full object-cover" alt="Preview" />
               )}
               {mediaType === 'video' && mediaBlob && (
-                <video src={URL.createObjectURL(mediaBlob)} className="w-full h-full object-cover" controls muted playsInline />
+                <video src={URL.createObjectURL(mediaBlob)} className="w-full h-full object-cover" controls muted />
               )}
               {textOverlay.text && (
                 <div
-                  className="absolute select-none bg-black/50 text-white p-2 rounded"
+                  className="absolute select-none pointer-events-none bg-black/50 text-white p-2 rounded"
                   style={{
                     left: `${textOverlay.x}%`,
                     top: `${textOverlay.y}%`,
@@ -375,11 +385,11 @@ const StatusCreator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               placeholder="Add text..."
               value={textOverlay.text}
               onChange={(e) => setTextOverlay(prev => ({ ...prev, text: e.target.value }))}
-              className="w-full p-2 border border-[rgb(var(--color-border))] rounded text-[rgb(var(--color-text))]"
+              className="w-full p-2 border border-[rgb(var(--color-border))] rounded"
             />
             <div className="flex space-x-2 text-sm">
-              <button onClick={() => setTextOverlay(prev => ({ ...prev, fontSize: Math.min(48, prev.fontSize + 4) }))} className="p-1"><Edit3 size={16} /></button>
-              <input type="color" value={textOverlay.color} onChange={(e) => setTextOverlay(prev => ({ ...prev, color: e.target.value }))} className="w-8 h-8 border-none" />
+              <button onClick={() => setTextOverlay(prev => ({ ...prev, fontSize: prev.fontSize + 4 }))}><Edit3 size={16} /></button>
+              <input type="color" value={textOverlay.color} onChange={(e) => setTextOverlay(prev => ({ ...prev, color: e.target.value }))} className="w-8 h-8" />
             </div>
             <button onClick={handlePost} className="w-full p-3 bg-[rgb(var(--color-primary))] text-white rounded-lg">
               Post Status
@@ -397,6 +407,9 @@ const StatusViewer: React.FC<{ userId: string; onClose: () => void }> = ({ userI
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showText, setShowText] = useState(true);
+  const [paused, setPaused] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchStatuses = async () => {
@@ -416,21 +429,59 @@ const StatusViewer: React.FC<{ userId: string; onClose: () => void }> = ({ userI
     fetchStatuses();
   }, [userId]);
 
+  useEffect(() => {
+    if (statuses.length === 0 || paused) return;
+
+    if (statuses[currentIndex].media_type === 'image') {
+      timerRef.current = setTimeout(() => {
+        if (currentIndex < statuses.length - 1) {
+          setCurrentIndex(currentIndex + 1);
+        } else {
+          onClose();
+        }
+      }, 5000); // 5s for images
+    }
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [currentIndex, statuses, paused, onClose]);
+
+  const handleTouchStart = () => setPaused(true);
+  const handleTouchEnd = () => setPaused(false);
+
+  const handlePrev = () => setCurrentIndex(Math.max(0, currentIndex - 1));
+  const handleNext = () => setCurrentIndex(Math.min(statuses.length - 1, currentIndex + 1));
+
   if (statuses.length === 0) return null;
 
   const current = statuses[currentIndex];
   const overlay = current.text_overlay as any;
 
   return (
-    <div className="fixed inset-0 z-[1000] bg-black flex flex-col" onClick={() => onClose()}>
+    <div className="fixed inset-0 z-[1000] bg-black flex flex-col" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       {/* Progress Bars */}
-      <div className="flex space-x-2 p-2 absolute top-20 left-1/2 transform -translate-x-1/2 w-[90%] z-10">
+      <div className="flex space-x-2 p-2 absolute top-0 left-0 w-full z-10">
         {statuses.map((_, idx) => (
           <div key={idx} className="flex-1 h-1 bg-white/30 rounded-full">
-            <div className={`h-full bg-[rgb(var(--color-primary))] rounded-full transition-all duration-500 ${idx < currentIndex ? 'w-full' : idx === currentIndex ? 'w-1/2' : 'w-0'}`} />
+            <div className={`h-full bg-white rounded-full transition-all ${idx < currentIndex ? 'w-full' : idx === currentIndex && !paused ? 'animate-progress' : 'w-0'}`} />
           </div>
         ))}
       </div>
+
+      {/* User Info */}
+      <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
+        <img 
+          src={current.profiles?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${current.profiles?.username}`}
+          className="w-8 h-8 rounded-full"
+          alt={current.profiles?.display_name}
+        />
+        <span className="text-white font-bold">{current.profiles?.display_name}</span>
+        <span className="text-white/70 text-sm">{formatTime(current.created_at)}</span>
+      </div>
+
+      {/* Close Button */}
+      <button onClick={onClose} className="absolute top-4 right-4 z-10 text-white"><X size={24} /></button>
 
       {/* Media */}
       <div className="flex-1 flex items-center justify-center relative" onClick={e => e.stopPropagation()}>
@@ -450,11 +501,13 @@ const StatusViewer: React.FC<{ userId: string; onClose: () => void }> = ({ userI
         )}
       </div>
 
-      {/* Navigation */}
-      <div className="flex justify-between p-4">
-        <button onClick={e => { e.stopPropagation(); setCurrentIndex(Math.max(0, currentIndex - 1)); }}><ChevronLeft size={32} className="text-white" /></button>
-        <button onClick={e => { e.stopPropagation(); onClose(); }} className="text-white"><X size={32} /></button>
-        <button onClick={e => { e.stopPropagation(); setCurrentIndex(Math.min(statuses.length - 1, currentIndex + 1)); }}><ChevronRight size={32} className="text-white" /></button>
+      {/* Navigation Areas */}
+      <div className="absolute left-0 top-0 bottom-0 w-1/3" onClick={handlePrev} />
+      <div className="absolute right-0 top-0 bottom-0 w-1/3" onClick={handleNext} />
+
+      {/* Reply Input at Bottom */}
+      <div className="p-4 bg-black/50">
+        <input type="text" placeholder="Reply..." className="w-full p-2 rounded-full bg-white/10 text-white border-none" />
       </div>
     </div>
   );
@@ -497,7 +550,7 @@ export const StatusArchive: React.FC = () => {
 
   return (
     <div className="p-4 space-y-4">
-      <h1 className="text-2xl font-bold text-[rgb(var(--color-text))]">Status Archive</h1>
+      <h1 className="text-2xl font-bold">Status Archive</h1>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {allStatuses.map((status) => (
           <div key={status.id} className="relative group cursor-pointer" onClick={() => openArchiveViewer(status)}>
@@ -522,7 +575,7 @@ export const StatusArchive: React.FC = () => {
             ) : (
               <video src={selectedStatus.media_url} className="w-full rounded" controls muted playsInline />
             )}
-            <button onClick={() => setSelectedStatus(null)} className="absolute top-2 right-2 text-white p-2"><X size={24} /></button>
+            <button onClick={() => setSelectedStatus(null)} className="absolute top-2 right-2 text-white"><X size={24} /></button>
           </div>
         </div>
       )}
@@ -531,46 +584,34 @@ export const StatusArchive: React.FC = () => {
 };
 
 // StatusSidebar Component
-interface StatusSidebarProps {
-  show: boolean;
-  onClose: () => void;
-  setView: (view: string) => void;
-  view: string;
-}
-
 export const StatusSidebar: React.FC<StatusSidebarProps> = ({ show, onClose, setView, view }) => {
-  const isMobile = useIsMobile();
-
   const menuItems = [
-    { icon: <Home size={20} />, label: 'Home', view: 'feed', onClick: () => { setView('feed'); if (isMobile) onClose(); } },
-    { icon: <Archive size={20} />, label: 'Status Archive', view: 'archive', onClick: () => { setView('archive'); if (isMobile) onClose(); } },
+    { icon: <Home size={20} />, label: 'Home', view: 'feed', onClick: () => { setView('feed'); onClose(); } },
+    { icon: <Archive size={20} />, label: 'Status Archive', view: 'archive', onClick: () => { setView('archive'); onClose(); } },
   ];
 
-  const sidebarClass = `
-    fixed left-0 top-0 h-full w-64 bg-[rgb(var(--color-surface))] border-r border-[rgb(var(--color-border))] z-[99]
-    ${isMobile ? (show ? 'translate-x-0' : '-translate-x-full') : ''}
-    transition-transform duration-300 shadow-lg flex-shrink-0
-  `;
-
   return (
-    <div className={sidebarClass}>
-      <nav className="p-4 space-y-2 h-full flex flex-col">
-        {menuItems.map((item, idx) => (
-          <button
-            key={idx}
-            onClick={item.onClick}
-            className={`w-full flex items-center space-x-3 p-3 rounded-lg transition ${
-              view === item.view
-                ? 'bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))]'
-                : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-hover))]'
-            }`}
-          >
-            {item.icon}
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </nav>
-    </div>
+    <>
+      <div className={`fixed left-0 top-0 h-full w-64 bg-[rgb(var(--color-surface))] border-r border-[rgb(var(--color-border))] z-[99] ${show ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 shadow-lg flex-shrink-0`}>
+        <nav className="p-4 space-y-2 h-full flex flex-col">
+          {menuItems.map((item, idx) => (
+            <button
+              key={idx}
+              onClick={item.onClick}
+              className={`w-full flex items-center space-x-3 p-3 rounded-lg transition ${
+                view === item.view
+                  ? 'bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))]'
+                  : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-hover))]'
+              }`}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
+      {show && <div className="fixed inset-0 bg-black/50 z-[98]" onClick={onClose} />}
+    </>
   );
 };
 
