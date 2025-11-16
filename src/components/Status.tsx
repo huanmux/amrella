@@ -35,10 +35,12 @@ const useActiveStatuses = () => {
     }
 
     try {
+      // 🐛 FIX: Explicitly name the foreign key column for the join
+      // Syntax: 'table_name!fk_column_name(columns_to_select)'
+      // If `user_id` is the foreign key on `statuses` pointing to `profiles`, use `profiles:user_id(*)`
       let query = supabase
         .from('statuses')
-        // FIX: Changed 'profiles!user_id(*)' to the correct PostgREST embedding: 'profiles(*)'
-        .select('*, profiles(*)') 
+        .select('*, profiles:user_id(*)') // <-- EXPLICIT JOIN FIX
         .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false })
         .limit(50);
@@ -47,7 +49,12 @@ const useActiveStatuses = () => {
       let followIds: string[] = [user.id]; // Always include own ID
       if (FOLLOW_ONLY_FEED) {
         try {
-          const { data: follows } = await supabase.from('follows').select('followed_id').eq('follower_id', user.id);
+          const { data: follows, error: followError } = await supabase.from('follows').select('followed_id').eq('follower_id', user.id);
+          // ⚠️ Note: The follow query itself is also returning 400. This is outside Status.tsx but related.
+          // The error "HTTP/2 400" on the 'follows' query suggests RLS or table/column name issues there.
+          if (followError) {
+             console.warn('Error fetching follows (PGRST likely related to RLS or missing table):', followError);
+          }
           followIds = [...followIds, ...(follows?.map(f => f.followed_id) || [])];
         } catch (followError) {
           console.warn('Follows table not found or error fetching follows:', followError);
@@ -145,14 +152,17 @@ export const StatusTray: React.FC = () => {
     .map(([, statuses]) => statuses[statuses.length - 1]) // Get latest status
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
+  // Helper to determine border color (needed for the implicit statuses access in the render)
   const getBorderColor = (status: Status) => {
+    if (!user) return 'rgb(var(--color-border))';
     if (status.user_id === user.id) {
-      return userHasUnviewed ? 'url(#own-grad)' : 'rgb(var(--color-border))'; // Dimmer if all viewed
+      return userHasUnviewed ? 'url(#own-grad)' : 'rgb(var(--color-border))';
     }
-    // Check if the latest status in the user's group is viewed
-    const allViewed = statuses[statuses.length - 1].viewed_by?.includes(user.id);
-    return allViewed ? 'rgb(var(--color-border))' : 'url(#grad-' + status.user_id + ')';
+    const statuses = activeStatuses[status.user_id] || [];
+    const hasUnviewed = statuses.some(s => !(s.viewed_by || []).includes(user.id));
+    return hasUnviewed ? 'url(#grad-' + status.user_id + ')' : 'rgb(var(--color-border))';
   };
+
 
   return (
     <div className="flex space-x-4 p-4 overflow-x-auto scrollbar-hide bg-[rgb(var(--color-surface))] border-b border-[rgb(var(--color-border))]">
@@ -204,6 +214,7 @@ export const StatusTray: React.FC = () => {
               className="relative w-16 h-16 rounded-full cursor-pointer flex-shrink-0"
             >
               <img 
+                // The profile data is now accessed correctly via the column alias `profiles`
                 src={status.profiles?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${status.profiles?.username}`}
                 className="w-full h-full rounded-full object-cover"
                 alt={status.profiles?.display_name}
@@ -503,17 +514,18 @@ const StatusViewer: React.FC<{ userId: string; onClose: () => void }> = ({ userI
     });
 
     if (error) {
-        console.error("Error marking status as viewed:", error);
-    }
-    
-    // Fallback direct update (less robust against concurrency but might be needed if RPC is missing)
-    if (!status.viewed_by?.includes(user.id)) {
-        const newViewedBy = [...(status.viewed_by || []), user.id];
-        await supabase
-            .from('statuses')
-            .update({ viewed_by: newViewedBy })
-            .eq('id', status.id)
-            .select();
+        console.error("Error marking status as viewed. Attempting fallback direct update:", error);
+        
+        // Fallback direct update (less robust against concurrency but might be needed if RPC is missing)
+        if (!status.viewed_by?.includes(user.id)) {
+            const newViewedBy = [...(status.viewed_by || []), user.id];
+            // Note: RLS must allow UPDATE for the authenticated user to perform this
+            await supabase
+                .from('statuses')
+                .update({ viewed_by: newViewedBy })
+                .eq('id', status.id)
+                .select();
+        }
     }
   }, [user]);
 
@@ -703,11 +715,10 @@ export const StatusArchive: React.FC = () => {
     }
     const fetchAll = async () => {
       try {
-        // Query relies on RLS policy: "Users can read own archive" (auth.uid() = user_id)
+        // FIX: Explicitly name the foreign key column for the join
         const { data, error } = await supabase
           .from('statuses')
-          // FIX: Changed 'profiles!user_id(*)' to the correct PostgREST embedding: 'profiles(*)'
-          .select('*, profiles(*)') 
+          .select('*, profiles:user_id(*)') // <-- EXPLICIT JOIN FIX
           .eq('user_id', user.id) // IMPORTANT: Filter by current user ID
           .order('created_at', { ascending: false });
         
@@ -797,6 +808,7 @@ export const StatusSidebar: React.FC<StatusSidebarProps> = ({ show, onClose, set
     { icon: <Archive size={20} />, label: 'Status Archive', view: 'archive', onClick: () => { setView('archive'); onClose(); } },
   ];
 
+  // Sidebar visibility and closing is handled by Tailwind classes and the overlay
   const sidebarClass = `
     fixed left-0 top-0 h-full w-64 bg-[rgb(var(--color-surface))] border-r border-[rgb(var(--color-border))] z-[100] 
     ${show ? 'translate-x-0' : '-translate-x-full'}
