@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase, uploadStatusMedia, Profile, Status } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { X, Plus, Camera, Video, Image as ImageIcon, Edit3, ChevronLeft, ChevronRight, Clock, Archive, Menu } from 'lucide-react';
+import { X, Plus, Camera, Video, Image as ImageIcon, Edit3, ChevronLeft, ChevronRight, Clock, Archive, Home } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const FOLLOW_ONLY_FEED = import.meta.env.VITE_FOLLOW_ONLY_FEED === 'true';
@@ -11,10 +11,11 @@ const FOLLOW_ONLY_FEED = import.meta.env.VITE_FOLLOW_ONLY_FEED === 'true';
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();  // Initial check
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    if (typeof window === 'undefined') return;
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
   return isMobile;
 };
@@ -30,41 +31,47 @@ export const StatusTray: React.FC = () => {
     if (!user) return;
 
     const fetchActiveStatuses = async () => {
-      let query = supabase
-        .from('statuses')
-        .select('*, profiles!user_id(*)')
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false })
-        .limit(50);
+      try {
+        let query = supabase
+          .from('statuses')
+          .select('*, profiles!user_id(*)')
+          .gt('expires_at', new Date().toISOString())
+          .order('created_at', { ascending: false })
+          .limit(50);
 
-      // If follow-only, filter by follows (assuming a 'follows' table exists; adjust if needed)
-      if (FOLLOW_ONLY_FEED) {
-        // Placeholder: fetch follows and filter in JS or use RPC
-        const { data: follows } = await supabase.from('follows').select('followed_id').eq('follower_id', user.id);  // Assume follows table
-        const followIds = follows?.map(f => f.followed_id) || [];
-        query = query.in('user_id', [user.id, ...followIds]);
-      }
-
-      const { data, error } = await query;
-      if (error) {
-        console.error('Error fetching statuses:', error);
-        return;
-      }
-      if (!data) return;
-
-      // Group by user_id, take latest per user
-      const grouped: { [key: string]: Status } = {};
-      data.forEach((status: Status) => {
-        if (!grouped[status.user_id] || new Date(status.created_at) > new Date(grouped[status.user_id].created_at)) {
-          grouped[status.user_id] = status;
+        // If follow-only, filter by follows (assuming a 'follows' table exists; adjust if needed)
+        if (FOLLOW_ONLY_FEED) {
+          // Placeholder: fetch follows and filter in JS or use RPC
+          let followIds: string[] = [];
+          try {
+            const { data: follows } = await supabase.from('follows').select('followed_id').eq('follower_id', user.id);  // Assume follows table
+            followIds = follows?.map(f => f.followed_id) || [];
+          } catch (followError) {
+            console.warn('Follows table not found or error fetching follows:', followError);
+            followIds = [];
+          }
+          query = query.in('user_id', [user.id, ...followIds]);
         }
-      });
 
-      setActiveStatuses(grouped);
+        const { data } = await query;
+        if (!data) return;
 
-      // Ensure own is always tracked
-      const own = grouped[user.id] || null;
-      setOwnStatus(own);
+        // Group by user_id, take latest per user
+        const grouped: { [key: string]: Status } = {};
+        data.forEach((status: Status) => {
+          if (!grouped[status.user_id] || new Date(status.created_at) > new Date(grouped[status.user_id].created_at)) {
+            grouped[status.user_id] = status;
+          }
+        });
+
+        setActiveStatuses(grouped);
+
+        // Ensure own is always tracked
+        const own = grouped[user.id] || null;
+        setOwnStatus(own);
+      } catch (error) {
+        console.error('Error fetching statuses:', error);
+      }
     };
 
     fetchActiveStatuses();
@@ -73,7 +80,6 @@ export const StatusTray: React.FC = () => {
   }, [user]);
 
   const handleOwnClick = () => {
-    // Trigger global modal via dispatchEvent or context; for simplicity, use custom event
     window.dispatchEvent(new CustomEvent('openStatusCreator'));
   };
 
@@ -186,9 +192,8 @@ const StatusCreator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           }, 'image/jpeg');
         }
       }
-    } catch (err) {
-      console.error('Error capturing photo:', err);
-      alert('Failed to access camera. Please check permissions.');
+    } catch (error) {
+      console.error('Error capturing photo:', error);
     }
   };
 
@@ -215,9 +220,8 @@ const StatusCreator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       };
       mediaRecorderRef.current.start();
       setRecording(true);
-    } catch (err) {
-      console.error('Error starting recording:', err);
-      alert('Failed to access camera/mic. Please check permissions.');
+    } catch (error) {
+      console.error('Error starting recording:', error);
     }
   };
 
@@ -244,10 +248,12 @@ const StatusCreator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
     const rect = editorRef.current?.getBoundingClientRect();
-    setDragOffset({
-      x: e.clientX - rect!.left - textOverlay.x,
-      y: e.clientY - rect!.top - textOverlay.y,
-    });
+    if (rect) {
+      setDragOffset({
+        x: e.clientX - rect.left - textOverlay.x,
+        y: e.clientY - rect.top - textOverlay.y,
+      });
+    }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -267,13 +273,14 @@ const StatusCreator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     if (!user || !mediaBlob) return;
 
     try {
-      // Convert Blob to File if necessary (to ensure .name exists for upload)
+      // Convert Blob to File if necessary to ensure .name exists
       let uploadFile: File;
       if (mediaBlob instanceof File) {
         uploadFile = mediaBlob;
       } else {
-        const defaultName = mediaType === 'image' ? 'status.jpg' : 'status.webm';
-        uploadFile = new File([mediaBlob], defaultName, { type: mediaBlob.type });
+        const extension = mediaType === 'image' ? 'jpg' : 'webm';
+        const fileName = `status-${Date.now()}.${extension}`;
+        uploadFile = new File([mediaBlob], fileName, { type: mediaBlob.type });
       }
 
       const uploadResult = await uploadStatusMedia(uploadFile);
@@ -282,7 +289,7 @@ const StatusCreator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         return;
       }
 
-      const { error: insertError } = await supabase
+      const { error } = await supabase
         .from('statuses')
         .insert({
           media_url: uploadResult.url,
@@ -290,8 +297,8 @@ const StatusCreator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           text_overlay: textOverlay.text ? textOverlay : {},
         });
 
-      if (insertError) {
-        console.error('Error inserting status:', insertError);
+      if (error) {
+        console.error('Insert error:', error);
         alert('Failed to post status. Please try again.');
         return;
       }
@@ -300,23 +307,23 @@ const StatusCreator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       setStep('capture');
       setMediaBlob(null);
       setTextOverlay({ text: '', x: 50, y: 50, fontSize: 24, color: 'white' });
-    } catch (err) {
-      console.error('Error posting status:', err);
-      alert('An error occurred while posting. Please try again.');
+    } catch (error) {
+      console.error('Post error:', error);
+      alert('An error occurred while posting your status.');
     }
   };
 
   return (
     <div className="fixed inset-0 z-[1000] bg-black flex items-center justify-center p-4" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}>
       <div className="bg-[rgb(var(--color-surface))] rounded-2xl p-4 w-full max-w-md max-h-[90vh] overflow-y-auto relative">
-        <button onClick={onClose} className="absolute top-2 right-2 p-1 hover:bg-[rgb(var(--color-surface-hover))]">
-          <X size={20} />
+        <button onClick={onClose} className="absolute top-2 right-2 p-1 hover:bg-[rgb(var(--color-surface-hover))] rounded-full">
+          <X size={20} className="text-[rgb(var(--color-text))]" />
         </button>
 
         {step === 'capture' && (
           <div className="space-y-4">
-            <h2 className="text-lg font-bold text-center">Create Status</h2>
-            <video ref={videoRef} className="w-full h-48 object-cover rounded" autoPlay muted />
+            <h2 className="text-lg font-bold text-center text-[rgb(var(--color-text))]">Create Status</h2>
+            <video ref={videoRef} className="w-full h-48 object-cover rounded bg-black" autoPlay muted playsInline />
             <div className="flex space-x-2">
               <button onClick={capturePhoto} className="flex-1 p-3 bg-[rgb(var(--color-primary))] text-white rounded-lg flex items-center justify-center space-x-2">
                 <Camera size={20} /> <span>Photo</span>
@@ -339,17 +346,17 @@ const StatusCreator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
         {step === 'edit' && (
           <div className="space-y-4">
-            <h2 className="text-lg font-bold text-center">Edit Status</h2>
-            <div ref={editorRef} className="relative w-full h-64 bg-black rounded overflow-hidden cursor-move" style={{ position: 'relative' }}>
+            <h2 className="text-lg font-bold text-center text-[rgb(var(--color-text))]">Edit Status</h2>
+            <div ref={editorRef} className="relative w-full h-64 bg-black rounded overflow-hidden" style={{ position: 'relative' }}>
               {mediaType === 'image' && mediaBlob && (
                 <img src={URL.createObjectURL(mediaBlob)} className="w-full h-full object-cover" alt="Preview" />
               )}
               {mediaType === 'video' && mediaBlob && (
-                <video src={URL.createObjectURL(mediaBlob)} className="w-full h-full object-cover" controls muted />
+                <video src={URL.createObjectURL(mediaBlob)} className="w-full h-full object-cover" controls muted playsInline />
               )}
               {textOverlay.text && (
                 <div
-                  className="absolute select-none pointer-events-none bg-black/50 text-white p-2 rounded"
+                  className="absolute select-none bg-black/50 text-white p-2 rounded"
                   style={{
                     left: `${textOverlay.x}%`,
                     top: `${textOverlay.y}%`,
@@ -367,11 +374,11 @@ const StatusCreator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               placeholder="Add text..."
               value={textOverlay.text}
               onChange={(e) => setTextOverlay(prev => ({ ...prev, text: e.target.value }))}
-              className="w-full p-2 border border-[rgb(var(--color-border))] rounded"
+              className="w-full p-2 border border-[rgb(var(--color-border))] rounded text-[rgb(var(--color-text))]"
             />
             <div className="flex space-x-2 text-sm">
-              <button onClick={() => setTextOverlay(prev => ({ ...prev, fontSize: prev.fontSize + 4 }))}><Edit3 size={16} /></button>
-              <input type="color" value={textOverlay.color} onChange={(e) => setTextOverlay(prev => ({ ...prev, color: e.target.value }))} className="w-8 h-8" />
+              <button onClick={() => setTextOverlay(prev => ({ ...prev, fontSize: Math.min(48, prev.fontSize + 4) }))} className="p-1"><Edit3 size={16} /></button>
+              <input type="color" value={textOverlay.color} onChange={(e) => setTextOverlay(prev => ({ ...prev, color: e.target.value }))} className="w-8 h-8 border-none" />
             </div>
             <button onClick={handlePost} className="w-full p-3 bg-[rgb(var(--color-primary))] text-white rounded-lg">
               Post Status
@@ -392,18 +399,18 @@ const StatusViewer: React.FC<{ userId: string; onClose: () => void }> = ({ userI
 
   useEffect(() => {
     const fetchStatuses = async () => {
-      const { data, error } = await supabase
-        .from('statuses')
-        .select('*, profiles!user_id(*)')
-        .eq('user_id', userId)
-        .gt('expires_at', new Date().toISOString())  // Active only
-        .order('created_at', { ascending: true });
-      if (error) {
-        console.error('Error fetching statuses:', error);
-        return;
+      try {
+        const { data } = await supabase
+          .from('statuses')
+          .select('*, profiles!user_id(*)')
+          .eq('user_id', userId)
+          .gt('expires_at', new Date().toISOString())  // Active only
+          .order('created_at', { ascending: true });
+        setStatuses(data || []);
+        if (data && data.length > 0) setCurrentIndex(0);
+      } catch (error) {
+        console.error('Error fetching statuses for viewer:', error);
       }
-      setStatuses(data || []);
-      if (data && data.length > 0) setCurrentIndex(0);
     };
     fetchStatuses();
   }, [userId]);
@@ -419,23 +426,23 @@ const StatusViewer: React.FC<{ userId: string; onClose: () => void }> = ({ userI
       <div className="flex space-x-2 p-2 absolute top-20 left-1/2 transform -translate-x-1/2 w-[90%] z-10">
         {statuses.map((_, idx) => (
           <div key={idx} className="flex-1 h-1 bg-white/30 rounded-full">
-            <div className={`h-full bg-[rgb(var(--color-primary))] rounded-full transition-all ${idx <= currentIndex ? 'w-full' : 'w-0'}`} />
+            <div className={`h-full bg-[rgb(var(--color-primary))] rounded-full transition-all duration-500 ${idx < currentIndex ? 'w-full' : idx === currentIndex ? 'w-1/2' : 'w-0'}`} />
           </div>
         ))}
       </div>
 
       {/* Media */}
-      <div className="flex-1 flex items-center justify-center relative">
+      <div className="flex-1 flex items-center justify-center relative" onClick={e => e.stopPropagation()}>
         {current.media_type === 'image' && (
           <img src={current.media_url} className="max-w-full max-h-full object-contain" alt="Status" />
         )}
         {current.media_type === 'video' && (
-          <video src={current.media_url} className="max-w-full max-h-full object-contain" autoPlay muted loop />
+          <video src={current.media_url} className="max-w-full max-h-full object-contain" autoPlay muted loop playsInline />
         )}
         {showText && overlay.text && (
           <div 
-            className="absolute text-white text-xl font-bold p-2 bg-black/50 rounded"
-            style={{ left: `${overlay.x}%`, top: `${overlay.y}%`, fontSize: overlay.fontSize }}
+            className="absolute text-white p-2 bg-black/50 rounded"
+            style={{ left: `${overlay.x}%`, top: `${overlay.y}%`, fontSize: `${overlay.fontSize}px` }}
           >
             {overlay.text}
           </div>
@@ -444,9 +451,9 @@ const StatusViewer: React.FC<{ userId: string; onClose: () => void }> = ({ userI
 
       {/* Navigation */}
       <div className="flex justify-between p-4">
-        <button onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}><ChevronLeft size={32} className="text-white" /></button>
-        <button onClick={onClose} className="text-white"><X size={32} /></button>
-        <button onClick={() => setCurrentIndex(Math.min(statuses.length - 1, currentIndex + 1))}><ChevronRight size={32} className="text-white" /></button>
+        <button onClick={e => { e.stopPropagation(); setCurrentIndex(Math.max(0, currentIndex - 1)); }}><ChevronLeft size={32} className="text-white" /></button>
+        <button onClick={e => { e.stopPropagation(); onClose(); }} className="text-white"><X size={32} /></button>
+        <button onClick={e => { e.stopPropagation(); setCurrentIndex(Math.min(statuses.length - 1, currentIndex + 1)); }}><ChevronRight size={32} className="text-white" /></button>
       </div>
     </div>
   );
@@ -462,16 +469,16 @@ export const StatusArchive: React.FC = () => {
   useEffect(() => {
     if (!user) return;
     const fetchAll = async () => {
-      const { data, error } = await supabase
-        .from('statuses')
-        .select('*, profiles!user_id(*)')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      if (error) {
+      try {
+        const { data } = await supabase
+          .from('statuses')
+          .select('*, profiles!user_id(*)')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+        setAllStatuses(data || []);
+      } catch (error) {
         console.error('Error fetching archive:', error);
-        return;
       }
-      setAllStatuses(data || []);
     };
     fetchAll();
   }, [user]);
@@ -489,7 +496,7 @@ export const StatusArchive: React.FC = () => {
 
   return (
     <div className="p-4 space-y-4">
-      <h1 className="text-2xl font-bold">Status Archive</h1>
+      <h1 className="text-2xl font-bold text-[rgb(var(--color-text))]">Status Archive</h1>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {allStatuses.map((status) => (
           <div key={status.id} className="relative group cursor-pointer" onClick={() => openArchiveViewer(status)}>
@@ -512,9 +519,9 @@ export const StatusArchive: React.FC = () => {
             {selectedStatus.media_type === 'image' ? (
               <img src={selectedStatus.media_url} className="w-full rounded" alt="Full" />
             ) : (
-              <video src={selectedStatus.media_url} className="w-full rounded" controls muted />
+              <video src={selectedStatus.media_url} className="w-full rounded" controls muted playsInline />
             )}
-            <button onClick={() => setSelectedStatus(null)} className="absolute top-2 right-2 text-white"><X size={24} /></button>
+            <button onClick={() => setSelectedStatus(null)} className="absolute top-2 right-2 text-white p-2"><X size={24} /></button>
           </div>
         </div>
       )}
@@ -534,17 +541,19 @@ export const StatusSidebar: React.FC<StatusSidebarProps> = ({ show, onClose, set
   const isMobile = useIsMobile();
 
   const menuItems = [
-    { icon: <Menu size={20} />, label: 'Home', view: 'feed', onClick: () => { setView('feed'); if (isMobile) onClose(); } },
+    { icon: <Home size={20} />, label: 'Home', view: 'feed', onClick: () => { setView('feed'); if (isMobile) onClose(); } },
     { icon: <Archive size={20} />, label: 'Status Archive', view: 'archive', onClick: () => { setView('archive'); if (isMobile) onClose(); } },
   ];
 
+  const sidebarClass = `
+    fixed left-0 top-0 h-full w-64 bg-[rgb(var(--color-surface))] border-r border-[rgb(var(--color-border))] z-[99]
+    ${isMobile ? (show ? 'translate-x-0' : '-translate-x-full') : ''}
+    transition-transform duration-300 shadow-lg
+  `;
+
   return (
-    <div className={`
-      fixed left-0 top-0 h-full w-64 bg-[rgb(var(--color-surface))] border-r border-[rgb(var(--color-border))] z-[99]
-      ${isMobile ? (show ? 'translate-x-0' : '-translate-x-full') : 'translate-x-0'}
-      transition-transform duration-300 shadow-lg
-    `}>
-      <nav className="p-4 space-y-2 h-full">
+    <div className={sidebarClass}>
+      <nav className="p-4 space-y-2 h-full flex flex-col">
         {menuItems.map((item, idx) => (
           <button
             key={idx}
@@ -571,14 +580,14 @@ export const Status: React.FC = () => {
 
   useEffect(() => {
     const handleOpenCreator = () => setShowCreator(true);
-    const handleOpenViewer = (e: any) => setViewerUserId(e.detail.userId);
+    const handleOpenViewer = (e: CustomEvent) => setViewerUserId(e.detail.userId);
 
     window.addEventListener('openStatusCreator', handleOpenCreator);
-    window.addEventListener('openStatusViewer', handleOpenViewer);
+    window.addEventListener('openStatusViewer', handleOpenViewer as EventListener);
 
     return () => {
       window.removeEventListener('openStatusCreator', handleOpenCreator);
-      window.removeEventListener('openStatusViewer', handleOpenViewer);
+      window.removeEventListener('openStatusViewer', handleOpenViewer as EventListener);
     };
   }, []);
 
