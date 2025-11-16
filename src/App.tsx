@@ -430,6 +430,7 @@ if (loading) {
       <Status />
     </div>
   );
+};
 
 function App() {
   return (
