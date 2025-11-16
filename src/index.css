@@ -162,8 +162,8 @@
 /* Invincible Theme: Pure OLED theme */
 .theme-invincible {
   /* Primary/Accent colors - Neon Red */
-  --color-primary: 45, 45, 45; 
-  --color-accent: 25, 25, 25;
+  --color-primary: 145, 145, 145; 
+  --color-accent: 125, 125, 125;
  
   /* Text/Background colors */
   --color-background: 0, 0, 0; 
