@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase, Message, Profile, uploadMedia } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Send, BadgeCheck, Search, ArrowLeft, X, Paperclip, FileText, Link, CornerUpLeft, Phone, Video } from 'lucide-react';
+import { Send, BadgeCheck, Search, ArrowLeft, X, Paperclip, FileText, Link, CornerUpLeft, Phone, Video, Mic } from 'lucide-react';
 import { Calls } from './Calls';
 
 // Define a type that includes the possible joined reply data
@@ -30,6 +30,11 @@ export const Messages = () => {
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [mediaInputMode, setMediaInputMode] = useState<'file' | 'url' | null>(null);
+
+  // --- VOICE MESSAGE STATE ---
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   
   // --- PAGINATION STATE ---
   const [messagePage, setMessagePage] = useState(0);
@@ -287,6 +292,11 @@ export const Messages = () => {
     let media_type = null;
 
     if (file) {
+      // If it's a locally generated audio file, ensure media_type is 'audio'
+      if (file.type.startsWith('audio/')) {
+        media_type = 'audio';
+      }
+      
       const result = await uploadMedia(file, 'messages', (percent) => {
         setUploadProgress(percent);
       });
@@ -295,13 +305,15 @@ export const Messages = () => {
         return;
       }
       media_url = result.url;
-      media_type = result.type;
+      media_type = media_type || result.type; // Prioritize our 'audio' type, otherwise use uploadMedia's result
     } else if (remoteUrl.trim()) {
       media_url = remoteUrl.trim();
       if (remoteUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
         media_type = 'image';
       } else if (remoteUrl.match(/\.(mp4|webm|mov|avi)$/i)) {
         media_type = 'video';
+      } else if (remoteUrl.match(/\.(mp3|wav|ogg|m4a)$/i)) {
+        media_type = 'audio';
       } else {
         media_type = 'document';
       }
@@ -410,6 +422,74 @@ export const Messages = () => {
     }));
   };
 
+  // --- VOICE RECORDING FUNCTIONS ---
+
+  const handleStartRecording = () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert("Audio recording is not supported by your browser.");
+      return;
+    }
+
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(stream => {
+        // Use 'audio/webm' as it's broadly supported
+        const options = { mimeType: 'audio/webm' };
+        let recorder: MediaRecorder;
+        try {
+          recorder = new MediaRecorder(stream, options);
+        } catch (e) {
+          // Fallback if webm isn't supported
+          recorder = new MediaRecorder(stream);
+        }
+
+        mediaRecorderRef.current = recorder;
+        audioChunksRef.current = [];
+
+        recorder.ondataavailable = event => {
+          audioChunksRef.current.push(event.data);
+        };
+
+        recorder.onstop = () => {
+          const mimeType = recorder.mimeType || 'audio/webm';
+          const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+          const audioFile = new File([audioBlob], `voice-message.${mimeType.split('/')[1] || 'webm'}`, { type: mimeType });
+          
+          setFile(audioFile); // This will trigger the preview
+          setIsRecording(false);
+          
+          // Stop all tracks from the stream to turn off the mic indicator
+          stream.getTracks().forEach(track => track.stop());
+        };
+
+        recorder.start();
+        setIsRecording(true);
+        // Clear other attachments
+        setFile(null);
+        setRemoteUrl('');
+        setMediaInputMode(null);
+      })
+      .catch(err => {
+        console.error("Mic error:", err);
+        alert("Mic not found or permission was denied. Please check your browser settings.");
+      });
+  };
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      handleStopRecording();
+    } else {
+      handleStartRecording();
+    }
+  };
+
+  // --- END VOICE RECORDING FUNCTIONS ---
+
 
   const displayList = searchQuery ? searchResults : conversations;
 
@@ -421,6 +501,9 @@ export const Messages = () => {
       }
       if (file.type.startsWith('video/')) {
         return <video src={url} className="max-h-32 rounded-lg" controls />;
+      }
+      if (file.type.startsWith('audio/')) {
+        return <audio src={url} className="w-full max-w-xs" controls />;
       }
       return (
         <div className="flex items-center gap-2 text-sm text-[rgb(var(--color-text))]">
@@ -435,6 +518,9 @@ export const Messages = () => {
       }
       if (remoteUrl.match(/\.(mp4|webm|mov|avi)$/i)) {
         return <video src={remoteUrl} className="max-h-32 rounded-lg" controls />;
+      }
+      if (remoteUrl.match(/\.(mp3|wav|ogg|m4a)$/i)) {
+        return <audio src={remoteUrl} className="w-full max-w-xs" controls />;
       }
       return (
         <div className="flex items-center gap-2 text-sm text-[rgb(var(--color-text))]">
@@ -620,6 +706,8 @@ export const Messages = () => {
                                 {repliedToMsg.media_type === 'image' && 'Image'}
                                 {repliedToMsg.media_type === 'video' && <Paperclip size={12} className="inline-block" />}
                                 {repliedToMsg.media_type === 'video' && 'Video'}
+                                {repliedToMsg.media_type === 'audio' && <Mic size={12} className="inline-block" />}
+                                {repliedToMsg.media_type === 'audio' && 'Voice Message'}
                                 {repliedToMsg.media_type === 'document' && <FileText size={12} className="inline-block" />}
                                 {repliedToMsg.media_type === 'document' && 'File'}
                                 {!repliedToMsg.content && !repliedToMsg.media_type && '[Message]'}
@@ -639,6 +727,12 @@ export const Messages = () => {
                           <video controls className="mb-2 rounded-lg max-w-full">
                             <source src={msg.media_url} />
                           </video>
+                        )}
+                        {msg.media_type === 'audio' && (
+                          <audio controls className="mb-2 rounded-lg w-full max-w-xs">
+                            <source src={msg.media_url} />
+                            Your browser does not support the audio element.
+                          </audio>
                         )}
                         {msg.media_type === 'document' && (
                           <a
@@ -709,6 +803,8 @@ export const Messages = () => {
                           {replyingTo.media_type === 'image' && 'Image'}
                           {replyingTo.media_type === 'video' && <Paperclip size={12} className="inline-block" />}
                           {replyingTo.media_type === 'video' && 'Video'}
+                          {replyingTo.media_type === 'audio' && <Mic size={12} className="inline-block" />}
+                          {replyingTo.media_type === 'audio' && 'Voice Message'}
                           {replyingTo.media_type === 'document' && <FileText size={12} className="inline-block" />}
                           {replyingTo.media_type === 'document' && 'File'}
                           {!replyingTo.content && !replyingTo.media_type && '[Message]'}
@@ -833,22 +929,38 @@ export const Messages = () => {
                   }}
                   className="p-2 rounded-full text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-hover))] transition"
                   title="Attach file or link"
+                  disabled={isRecording}
                 >
-                  <Paperclip size={24} />
+                  <Paperclip size={22} />
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={toggleRecording}
+                  className={`p-2 rounded-full transition ${
+                    isRecording 
+                      ? 'text-red-500 bg-red-500/10 animate-pulse' 
+                      : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-hover))]'
+                  }`}
+                  title={isRecording ? "Stop recording" : "Start voice message"}
+                  disabled={isUploading}
+                >
+                  <Mic size={22} />
                 </button>
 
                 <input
                   type="text"
-                  placeholder="Type a message..."
+                  placeholder={isRecording ? "Recording... (press mic to stop)" : "Type a message..."}
                   value={content}
                   onChange={handleInputChange}
                   className="flex-1 px-4 py-2.5 border border-[rgb(var(--color-border))] rounded-full focus:outline-none focus:border-[rgb(var(--color-accent))] text-base bg-[rgb(var(--color-background))] text-[rgb(var(--color-text))]"
+                  disabled={isRecording}
                 />
 
                 <button
                   type="submit"
-                  disabled={isUploading || (!content.trim() && !file && !remoteUrl.trim())}
-                  className={`p-2 rounded-full transition ${isUploading || (!content.trim() && !file && !remoteUrl.trim()) ? 'bg-[rgb(var(--color-border))] text-[rgb(var(--color-text-secondary))]' : 'bg-[rgba(var(--color-accent),1)] text-[rgb(var(--color-text-on-primary))] hover:bg-[rgba(var(--color-primary),1)]'}`}
+                  disabled={isUploading || isRecording || (!content.trim() && !file && !remoteUrl.trim())}
+                  className={`p-2 rounded-full transition ${isUploading || isRecording || (!content.trim() && !file && !remoteUrl.trim()) ? 'bg-[rgb(var(--color-border))] text-[rgb(var(--color-text-secondary))]' : 'bg-[rgba(var(--color-accent),1)] text-[rgb(var(--color-text-on-primary))] hover:bg-[rgba(var(--color-primary),1)]'}`}
                 >
                   <Send size={24} />
                 </button>
