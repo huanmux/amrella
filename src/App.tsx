@@ -405,7 +405,7 @@ if (loading) {
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox={SVG_VIEWBOX}
-                className="h-6 w-auto cursor-pointer"
+                className="w-[22px] h-[22px] cursor-pointer"
                 onClick={() => navigate('/')}
               >
                 <path
@@ -471,7 +471,7 @@ if (loading) {
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox={SVG_VIEWBOX}
-            className="h-6 w-auto cursor-pointer"
+            className="w-[22px] h-[22px] cursor-pointer"
             onClick={() => { setView('feed'); setSelectedProfileId(undefined); navigate('/'); }}
           >
             <path
