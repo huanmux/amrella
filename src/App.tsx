@@ -471,10 +471,10 @@ if (loading) {
                 navigate('/');
               }}
               className={`p-3 rounded-full transition ${
-                view === 'feed' ? 'bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))]' : 'hover:bg-[rgb(var(--color-surface-hover))]'
+                view === 'feed' ? 'bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))]' : 'hover:bg-[rgb(var(--color-surface-hover))] text-[rgb(var(--color-text-secondary))]'
               }`}
             >
-              <Home size={20} className="text-[rgb(var(--color-text-secondary))]" />
+              <Home size={20} />
             </button>
             
             {/* === UPDATED: Messages Icon === */}
@@ -485,10 +485,10 @@ if (loading) {
                 navigate('/message'); // Navigate to /message base
               }}
               className={`relative p-3 rounded-full transition ${ // Added relative
-                view === 'messages' ? 'bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))]' : 'hover:bg-[rgb(var(--color-surface-hover))]'
+                view === 'messages' ? 'bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))]' : 'hover:bg-[rgb(var(--color-surface-hover))] text-[rgb(var(--color-text-secondary))]'
               }`}
             >
-              <MessageSquare size={20} className="text-[rgb(var(--color-text-secondary))]" />
+              <MessageSquare size={20} />
               {unreadMessages > 0 && ( // Added dot
                 <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
               )}
@@ -514,10 +514,10 @@ if (loading) {
               className={`p-3 rounded-full transition ${
                 view === 'profile' && !selectedProfileId
                   ? 'bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))]'
-                  : 'hover:bg-[rgb(var(--color-surface-hover))]'
+                  : 'hover:bg-[rgb(var(--color-surface-hover))] text-[rgb(var(--color-text-secondary))]'
               }`}
             >
-              <User size={20} className="text-[rgb(var(--color-text-secondary))]" />
+              <User size={20} />
             </button>
             <button
               onClick={signOut}
