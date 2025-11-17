@@ -68,7 +68,7 @@ const HangUpButton = ({ onHangUp }: { onHangUp: () => void }) => {
     setProgress(0);
   };
 
-  const-radius = 60; // 2 * pi * r
+  const radius = 60; // 2 * pi * r
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - progress / 100);
 
