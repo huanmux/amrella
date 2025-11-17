@@ -513,7 +513,7 @@ if (loading) {
             >
               <MessageSquare size={20} />
               {unreadMessages > 0 && ( // Added dot
-                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
+                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
               )}
             </button>
 
