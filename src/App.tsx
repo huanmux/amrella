@@ -9,12 +9,12 @@ import { Search } from './components/Search';
 import { Settings } from './components/Settings';
 import { CustomPage } from './components/CustomPage';
 import { Stats } from './components/Stats';
+import { StatusSidebar, StatusArchive, Status } from './components/Status';
+import { Notifications } from './components/Notifications'; 
 import { Home, MessageSquare, User, LogOut, Search as SearchIcon, Bell } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom';
 import { Analytics } from '@vercel/analytics/react';
-import { StatusSidebar, StatusArchive, Status } from './components/Status';
-import { Notifications } from './components/Notifications'; 
 
 type ViewType = 'feed' | 'messages' | 'profile' | 'settings' | 'page' | 'stats'; 
 
@@ -445,18 +445,7 @@ if (loading) {
               onClick={() => setShowSearch(true)}
               className="p-3 rounded-full hover:bg-[rgb(var(--color-surface-hover))] transition"
             >
-              <SearchIcon size={24} className="text-[rgb(var(--color-text-secondary))]" />
-            </button>
-            
-            {/* === NEW: Bell Icon === */}
-            <button
-              onClick={handleNotificationsClick}
-              className="relative p-3 rounded-full hover:bg-[rgb(var(--color-surface-hover))] transition"
-            >
-              <Bell size={24} className="text-[rgb(var(--color-text-secondary))]" />
-              {unreadNotifications > 0 && (
-                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-              )}
+              <SearchIcon size={20} className="text-[rgb(var(--color-text-secondary))]" />
             </button>
             
             <button
@@ -469,7 +458,7 @@ if (loading) {
                 view === 'feed' ? 'bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))]' : 'hover:bg-[rgb(var(--color-surface-hover))]'
               }`}
             >
-              <Home size={24} />
+              <Home size={20} />
             </button>
             
             {/* === UPDATED: Messages Icon === */}
@@ -483,9 +472,19 @@ if (loading) {
                 view === 'messages' ? 'bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))]' : 'hover:bg-[rgb(var(--color-surface-hover))]'
               }`}
             >
-              <MessageSquare size={24} />
+              <MessageSquare size={20} />
               {unreadMessages > 0 && ( // Added dot
                 <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
+              )}
+            </button>
+
+			<button
+              onClick={handleNotificationsClick}
+              className="relative p-3 rounded-full hover:bg-[rgb(var(--color-surface-hover))] transition"
+            >
+              <Bell size={20} className="text-[rgb(var(--color-text-secondary))]" />
+              {unreadNotifications > 0 && (
+                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
               )}
             </button>
             
@@ -502,13 +501,13 @@ if (loading) {
                   : 'hover:bg-[rgb(var(--color-surface-hover))]'
               }`}
             >
-              <User size={24} />
+              <User size={20} />
             </button>
             <button
               onClick={signOut}
               className="p-3 rounded-full hover:bg-[rgba(239,68,68,0.1)] text-red-600 transition"
             >
-              <LogOut size={24} />
+              <LogOut size={20} />
             </button>
           </div>
         </div>
