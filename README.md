@@ -9,7 +9,7 @@ Current version: 1.0.8B
 
 This is a project where **anyone can easily fork/clone and deploy their own** versions of this platform. This GitHub repository provides a sort of boilerplate template for making your own such platforms, in a way.
 Unlike Mastodon and other open-source and decentralized or fediverse alternatives like this, the code is **compiled into a static site**, meaning it can be easily **hosted on most free hosting providers** for $0. All it needs is a database connection via Supabase. The content **behaves as if it is dynamic and real-time**, thanks to both Vercel (as what we have used) and Supabase's real-time API features.
-Also to get started on developing your own version of LiaoTian, it's much simpler than most other "templates" out there, since it uses **only 7 files** for its actual codebase (as of now).
+Also to get started on developing your own version of LiaoTian, it's much simpler than most other "templates" out there, since it uses **only 17 files** for its actual codebase (as of now).
 
 ## 👤 Use LiaoTian itself
 If you just want to create an account on **Liaoverse** (our official deployment) then [sign up here](https://liaoverse.xyz/).
@@ -72,8 +72,6 @@ If you just want to create an account on **Liaoverse** (our official deployment)
 
 ## 🚨 Current flaws
 - [ ] Cookie “__cf_bm” has been rejected for invalid domain. Browser console error logs sometimes.
-- [ ] removing a follower from own Profile doesn't make changes to database for some reason
-- [ ] message replies don't show text content for some reason
 - [ ] audio and video calling may require a turn server
 
 ---

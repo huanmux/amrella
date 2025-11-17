@@ -848,17 +848,20 @@ export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; on
     loadFollowStats();
   };
 
-  // FIXED: Now actually removes + updates UI
+  // FIXED: Now calls an RPC to bypass RLS safely
   const removeFollower = async (followerId: string) => {
-    const { error } = await supabase
-      .from('follows')
-      .delete()
-      .eq('follower_id', followerId)
-      .eq('following_id', user!.id);
+    // Call the 'remove_follower' database function we created
+    const { error } = await supabase.rpc('remove_follower', {
+      p_follower_id: followerId
+    });
 
     if (!error) {
+      // The DB call was successful, now update the UI
       setFollowersList(prev => prev.filter(p => p.id !== followerId));
       setFollowerCount(prev => prev - 1);
+    } else {
+      // The RPC returned an error, log it
+      console.error('Error removing follower:', error);
     }
   };
 
