@@ -28,6 +28,7 @@ CREATE TABLE public.gazebo_channels (
   name text NOT NULL,
   type text NOT NULL CHECK (type = ANY (ARRAY['text'::text, 'voice'::text])),
   created_at timestamp with time zone DEFAULT now(),
+  topic text DEFAULT ''::text,
   CONSTRAINT gazebo_channels_pkey PRIMARY KEY (id),
   CONSTRAINT gazebo_channels_gazebo_id_fkey FOREIGN KEY (gazebo_id) REFERENCES public.gazebos(id)
 );
@@ -36,6 +37,8 @@ CREATE TABLE public.gazebo_members (
   user_id uuid NOT NULL,
   role text DEFAULT 'member'::text CHECK (role = ANY (ARRAY['owner'::text, 'admin'::text, 'member'::text])),
   joined_at timestamp with time zone DEFAULT now(),
+  role_color text DEFAULT '#94a3b8'::text,
+  role_name text DEFAULT 'Member'::text,
   CONSTRAINT gazebo_members_pkey PRIMARY KEY (gazebo_id, user_id),
   CONSTRAINT gazebo_members_gazebo_id_fkey FOREIGN KEY (gazebo_id) REFERENCES public.gazebos(id),
   CONSTRAINT gazebo_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
@@ -61,6 +64,10 @@ CREATE TABLE public.gazebos (
   owner_id uuid NOT NULL,
   icon_url text DEFAULT ''::text,
   created_at timestamp with time zone DEFAULT now(),
+  invite_code text UNIQUE,
+  invite_expires_at timestamp with time zone,
+  invite_uses_max integer DEFAULT 0,
+  invite_uses_current integer DEFAULT 0,
   CONSTRAINT gazebos_pkey PRIMARY KEY (id),
   CONSTRAINT gazebos_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.profiles(id)
 );
