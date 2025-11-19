@@ -1187,6 +1187,10 @@ export const Gazebos = ({ initialInviteCode, onInviteHandled, initialGazeboId }:
                              onClick={() => {
                                  setViewingProfile(null);
                                  navigate(`/message?user=${viewingProfile.username}`);
+                                 // Dispatch event to force Messages component to load conversation without refresh
+                                 setTimeout(() => {
+                                     window.dispatchEvent(new CustomEvent('openDirectMessage', { detail: viewingProfile }));
+                                 }, 100);
                              }}
                              className="flex-1 bg-[rgb(var(--color-primary))] text-white py-2 rounded font-medium text-sm"
                           >
