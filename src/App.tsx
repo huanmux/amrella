@@ -26,8 +26,8 @@ const Main = () => {
   const [pageSlug, setPageSlug] = useState<string>('');
   const [selectedProfileId, setSelectedProfileId] = useState<string | undefined>();
   const [showSearch, setShowSearch] = useState(false);
+  const [selectedPostId, setSelectedPostId] = useState<string | undefined>(); 
   
-  // --- STATE FIX: Added pendingGazeboId ---
   const [pendingGazeboInvite, setPendingGazeboInvite] = useState<string | null>(null);
   const [pendingGazeboId, setPendingGazeboId] = useState<string | null>(null);
   const [initialTab, setInitialTab] = useState<'chats' | 'gazebos'>('chats');
@@ -41,34 +41,154 @@ const Main = () => {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // === Auto-join via /invite/:code ===
+  // === COMPREHENSIVE URL ROUTING ===
   useEffect(() => {
-    const match = location.pathname.match(/^\/invite\/([a-zA-Z0-9-]{3,20})$/); 
-    if (match && user) {
-      const code = match[1];
-      setPendingGazeboInvite(code);
-      setView('messages');
-      navigate('/message'); 
-    }
-  }, [location.pathname, user, navigate]);
+    const handleRouting = async () => {
+      const path = location.pathname;
+      const search = new URLSearchParams(location.search);
+      
+      // 1. Priority: Invite Codes (Takes over everything if present)
+      const pathInviteMatch = path.match(/^\/invite\/([a-zA-Z0-9-]{3,20})$/);
+      const queryInvite = search.get('invite');
+      const inviteCode = pathInviteMatch ? pathInviteMatch[1] : queryInvite;
 
-  // === NEW: Handle /gazebo route ===
-  useEffect(() => {
-    const path = location.pathname;
-    // Matches /gazebo or /gazebo/UUID
-    const match = path.match(/^\/gazebo\/?([a-zA-Z0-9-]{0,})?$/);
-    
-    if (match && user) {
-      const gazeboId = match[1];
-      setInitialTab('gazebos');
-      if (gazeboId) {
-        setPendingGazeboId(gazeboId);
+      if (inviteCode && user) {
+        setPendingGazeboInvite(inviteCode);
+        setView('messages');
+        setInitialTab('gazebos');
+        if (pathInviteMatch) navigate('/message', { replace: true }); 
+        return;
       }
-      setView('messages');
-      // Clean URL visually without reloading
-      window.history.replaceState({}, '', '/message'); 
-    }
-  }, [location.pathname, user]);
+
+      // 2. Priority: Gazebos (Direct link to server)
+      const pathGazeboMatch = path.match(/^\/gazebo\/?([a-zA-Z0-9-]{0,})?$/);
+      const queryGazeboId = search.get('gazebo');
+      const gazeboId = pathGazeboMatch ? pathGazeboMatch[1] : queryGazeboId;
+
+      if ((gazeboId || pathGazeboMatch) && user) {
+        setInitialTab('gazebos');
+        if (gazeboId) setPendingGazeboId(gazeboId);
+        setView('messages');
+        if (pathGazeboMatch) window.history.replaceState({}, '', '/message');
+        return;
+      }
+
+      // 3. Priority: Message User (Direct Message)
+      const msgUser = search.get('user');
+      if (path === '/message' && msgUser && user) {
+          // We just handle the view here, the Messages component reads the URL param/event
+          // But to ensure we load the conversation, we can trigger the internal navigation event if needed
+          // or let the Messages component handle it via the URL param directly. 
+          // Current Messages.tsx uses window event, let's bridge it if needed or rely on search param.
+          // Note: The provided Messages.tsx doesn't read ?user= natively yet, it relies on 'openDirectMessage' event.
+          // We will need to make sure we handle this in Messages or dispatch the event here.
+          // For now, we will set the view. Messages.tsx should ideally read the param.
+          
+          // Dispatching event after a short delay to ensure Messages component is mounted
+          const { data } = await supabase.from('profiles').select('*').eq('username', msgUser).single();
+          if (data) {
+             setTimeout(() => {
+                 window.dispatchEvent(new CustomEvent('openDirectMessage', { detail: data }));
+             }, 500);
+          }
+          setView('messages');
+          return;
+      }
+
+      // 4. Priority: Status Deep Links
+      const statusId = search.get('status');
+      if (statusId && user) {
+        const { data: statusData } = await supabase
+          .from('statuses')
+          .select('*, profiles!user_id(*)')
+          .eq('id', statusId)
+          .single();
+        
+        if (statusData) {
+          const profileWithStatus = {
+             ...statusData.profiles,
+             statuses: [statusData],
+             hasUnseen: false
+          };
+          window.dispatchEvent(new CustomEvent('openStatusViewer', {
+             detail: {
+               users: [profileWithStatus],
+               initialUserId: statusData.user_id
+             }
+          }));
+          setView('feed'); 
+        }
+        return;
+      }
+
+      // 5. Priority: Post Deep Links
+      const postId = search.get('post');
+      if (postId) {
+         const { data: postData } = await supabase
+            .from('posts')
+            .select('user_id')
+            .eq('id', postId)
+            .maybeSingle(); 
+         
+         if (postData) {
+             setSelectedProfileId(postData.user_id);
+             setSelectedPostId(postId);
+             setView('profile');
+             return;
+         }
+      }
+
+      // 6. Priority: User Profile (via root /?user=)
+      // Only if we are at root AND have user param, OR path matches standard profile route if one existed
+      const usernameQuery = search.get('user');
+      if (path === '/' && usernameQuery) {
+         const { data } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('username', usernameQuery.toLowerCase())
+            .single();
+         if (data) {
+            setSelectedProfileId(data.id);
+            setView('profile');
+            return;
+         }
+      }
+      
+      // 7. Priority: Standard Routes
+      if (path === '/message') {
+        setView('messages');
+        return;
+      }
+      if (path === '/stats') {
+        setView('stats');
+        return;
+      }
+      
+      // 8. Priority: Custom Page Slugs
+      const slugMatch = path.match(/^\/([a-zA-Z0-9-]+)$/);
+      if (slugMatch) {
+         const slug = slugMatch[1];
+         // Ignore reserved words just in case
+         if (!['user', 'invite', 'gazebo', 'message', 'stats'].includes(slug)) {
+             setView('page');
+             setPageSlug(slug);
+             return;
+         }
+      }
+
+      // Default
+      if (path === '/') {
+          setView('feed');
+          setSelectedProfileId(undefined);
+          setSelectedPostId(undefined);
+      }
+
+    };
+    
+    handleRouting();
+
+  }, [location.pathname, location.search, user, navigate]);
+
 
   // Set theme from profile
   useEffect(() => {
@@ -121,10 +241,17 @@ const Main = () => {
       schema: 'public',
       table: 'messages',
       filter: `recipient_id=eq.${user.id}`
-    }, (payload) => {
-      if (payload.old.read === false && payload.new.read === true) {
-        setUnreadMessages(c => Math.max(0, c - 1));
-      }
+    }, () => {
+      // Refetch count completely to ensure accuracy (fixes issue where 'old' payload is missing)
+      const fetchCount = async () => {
+          const { count } = await supabase
+            .from('messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('recipient_id', user.id)
+            .eq('read', false);
+          setUnreadMessages(count || 0);
+      };
+      fetchCount();
     });
 
     channel.on('postgres_changes', {
@@ -154,141 +281,6 @@ const Main = () => {
     };
 
   }, [user]);
-
-  // === URL PROFILE LOOKUP ===
-  useEffect(() => {
-    const checkUrlForProfile = async () => {
-      const search = window.location.search;
-      const path = window.location.pathname;
-      let username: string | null = null;
-      
-      if (path === '/' || path === '/user') {
-          if (search.startsWith('?') && !search.includes('=')) {
-              username = search.slice(1);
-          }
-      }
-
-      const userParamMatch = search.match(/\?user=([^&]+)/);
-      if (userParamMatch) {
-        username = userParamMatch[1];
-      }
-      
-      if (!username || username.includes('/')) return;
-
-      try {
-        const { data } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('username', username.toLowerCase())
-          .single();
-
-        if (data) {
-          setSelectedProfileId(data.id);
-          setView('profile');
-        }
-      } catch (err) {
-        // Ignore
-      }
-    };
-
-    checkUrlForProfile();
-    window.addEventListener('popstate', checkUrlForProfile);
-    return () => window.removeEventListener('popstate', checkUrlForProfile);
-  }, []);
-
-  // === CUSTOM PAGE ROUTING ===
-  useEffect(() => {
-    const path = location.pathname;
-    const search = location.search;
-    
-    // Prevent redirect looping on invite links
-    if (path.startsWith('/invite/') || path.startsWith('/gazebo')) return;
-
-    if (path === '/' || path === '/user') {
-        const usernameQuery = search.startsWith('?') ? search.slice(1) : search;
-        let username = null;
-        if (usernameQuery && !usernameQuery.includes('=')) {
-            username = usernameQuery;
-        } else if (usernameQuery.startsWith('user=')) {
-            const userMatch = usernameQuery.match(/^user=([^&]+)/);
-            if (userMatch) username = userMatch[1];
-        }
-        
-        if (username && !username.includes('/')) return;
-        
-        setView('feed');
-        setPageSlug('');
-        setSelectedProfileId(undefined);
-        return;
-    }
-    
-    if (path === '/message') {
-        const username = search.startsWith('?') ? search.slice(1) : search;
-        if (username && !username.includes('/')) {
-            const lookupAndMessage = async () => {
-                try {
-                    if (!user) {
-                         setView('feed');
-                         return;
-                    }
-                    const { data } = await supabase
-                        .from('profiles')
-                        .select('*')
-                        .eq('username', username.toLowerCase())
-                        .single();
-                    
-                    if (data) {
-                        setView('messages');
-                        setSelectedProfileId(undefined);
-                        setTimeout(() => {
-                          window.dispatchEvent(new CustomEvent('openDirectMessage', { detail: data }));
-                        }, 0);
-                    } else {
-                        setView('feed');
-                    }
-                } catch (err) {
-                    setView('feed');
-                }
-            };
-            lookupAndMessage();
-            return;
-        }
-        
-        if (user) {
-            setView('messages');
-            setSelectedProfileId(undefined);
-            return;
-        }
-        setView('feed');
-        return;
-    }
-
-    if (path === '/stats') {
-      setView('stats');
-      setPageSlug('');
-      setSelectedProfileId(undefined);
-      return;
-    }
-
-    const match = path.match(/^\/([a-zA-Z0-9-]+)$/);
-    if (match) {
-      const slug = match[1];
-      if (slug === 'user') {
-          setView('feed');
-          setPageSlug('');
-          setSelectedProfileId(undefined);
-          return;
-      }
-      setView('page');
-      setPageSlug(slug);
-      setSelectedProfileId(undefined);
-      return;
-    }
-
-    setView('feed');
-    setPageSlug('');
-    setSelectedProfileId(undefined);
-  }, [location.pathname, location.search, user]); 
 
   // Keep internal navigation working
   useEffect(() => {
@@ -359,7 +351,7 @@ const Main = () => {
               <a href="/" className="text-[rgb(var(--color-primary))] hover:text-[rgba(var(--color-primary),0.8)] font-bold">← Back to Home</a>
             </div>
           </div>
-          <Profile userId={selectedProfileId} />
+          <Profile userId={selectedProfileId} initialPostId={selectedPostId} />
         </div>
       );
     }
@@ -367,12 +359,15 @@ const Main = () => {
     return <Auth />;
   }
 
-  const handleMessageUser = (profile: any) => {
+const handleMessageUser = (targetProfile: any) => {
     setView('messages');
     setSelectedProfileId(undefined);
+    // Update URL first
+    navigate(`/message?user=${targetProfile.username}`);
+    // Dispatch event so Messages component picks it up immediately without refresh
     setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('openDirectMessage', { detail: profile }));
-    }, 0);
+        window.dispatchEvent(new CustomEvent('openDirectMessage', { detail: targetProfile }));
+    }, 100);
   };
 
   const handleSettings = () => {
@@ -403,10 +398,10 @@ const Main = () => {
             <button onClick={() => setShowSearch(true)} className="p-3 rounded-full hover:bg-[rgb(var(--color-surface-hover))] transition">
               <SearchIcon size={20} className="text-[rgb(var(--color-text-secondary))]" />
             </button>
-            <button onClick={() => { setView('feed'); setSelectedProfileId(undefined); navigate('/'); }} className={`p-3 rounded-full transition ${view === 'feed' ? 'bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))]' : 'hover:bg-[rgb(var(--color-surface-hover))] text-[rgb(var(--color-text-secondary))]'}`}>
+            <button onClick={() => { setView('feed'); setSelectedProfileId(undefined); setSelectedPostId(undefined); navigate('/'); }} className={`p-3 rounded-full transition ${view === 'feed' ? 'bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))]' : 'hover:bg-[rgb(var(--color-surface-hover))] text-[rgb(var(--color-text-secondary))]'}`}>
               <Home size={20} />
             </button>
-            <button onClick={() => { setView('messages'); setSelectedProfileId(undefined); navigate('/message'); }} className={`relative p-3 rounded-full transition ${view === 'messages' ? 'bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))]' : 'hover:bg-[rgb(var(--color-surface-hover))] text-[rgb(var(--color-text-secondary))]'}`}>
+            <button onClick={() => { setView('messages'); setSelectedProfileId(undefined); setSelectedPostId(undefined); navigate('/message'); }} className={`relative p-3 rounded-full transition ${view === 'messages' ? 'bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))]' : 'hover:bg-[rgb(var(--color-surface-hover))] text-[rgb(var(--color-text-secondary))]'}`}>
               <MessageSquare size={20} />
               {unreadMessages > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
             </button>
@@ -435,7 +430,13 @@ const Main = () => {
 		    />
 		)}
         {view === 'profile' && (
-          <Profile userId={selectedProfileId} onMessage={handleMessageUser} onSettings={!selectedProfileId || selectedProfileId === user.id ? handleSettings : undefined} />
+          <Profile 
+            key={selectedProfileId || 'own-profile'} // Force remount if profile changes
+            userId={selectedProfileId} 
+            initialPostId={selectedPostId} // This triggers the modal in Profile.tsx
+            onMessage={handleMessageUser} 
+            onSettings={!selectedProfileId || selectedProfileId === user.id ? handleSettings : undefined} 
+          />
         )}
         {view === 'settings' && <Settings />}
         {showNotifications && <Notifications onClose={() => setShowNotifications(false)} />}

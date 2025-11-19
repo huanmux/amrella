@@ -27,16 +27,18 @@ const groupReactions = (reactions: MessageReaction[] | undefined, currentUserId:
     const grouped = new Map<string, GroupedReaction>();
     
     for (const reaction of reactions) {
+        // Handle case where reaction might be partial from realtime before fetch
         const { emoji, user_id, profiles } = reaction;
         
         if (!grouped.has(emoji)) {
-            grouped.set(emoji, { emoji, count: 0, hasReacted: false, userProfiles: [], });
+            grouped.set(emoji, { emoji, count: 0, hasReacted: false, userProfiles: [] });
         }
         
         const group = grouped.get(emoji)!;
         group.count++;
         if (user_id === currentUserId) group.hasReacted = true;
-        if (profiles) group.userProfiles.push(profiles);
+        // Only push valid profiles
+        if (profiles && !Array.isArray(profiles)) group.userProfiles.push(profiles);
     }
     
     return Array.from(grouped.values()).sort((a, b) => {
@@ -363,6 +365,22 @@ export const Messages = ({
     if (user) loadConversations();
   }, [user]);
 
+  // NEW: Listen for URL query params to open chat directly
+  useEffect(() => {
+      const params = new URLSearchParams(window.location.search);
+      const username = params.get('user');
+      if (username && user) {
+          const fetchUser = async () => {
+              const { data } = await supabase.from('profiles').select('*').eq('username', username).single();
+              if (data && data.id !== user.id) {
+                  setSelectedUser(data);
+                  setShowSidebar(false);
+              }
+          };
+          fetchUser();
+      }
+  }, [user]); // Runs on mount or when user loads
+
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -433,6 +451,44 @@ export const Messages = ({
             scrollToBottom();
             loadConversations();
           }
+        }
+      )
+      // ADDED: Listen for changes to message reactions
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'message_reactions' },
+        async (payload) => {
+           const newReaction = payload.new as any;
+           const oldReaction = payload.old as any;
+           const messageId = newReaction?.message_id || oldReaction?.message_id;
+
+           if (payload.eventType === 'DELETE') {
+               setMessages(prev => prev.map(msg => {
+                   if (msg.id === messageId && msg.reactions) {
+                       return { ...msg, reactions: msg.reactions.filter(r => r.id !== oldReaction.id) };
+                   }
+                   return msg;
+               }));
+           } else if (payload.eventType === 'INSERT') {
+               // We need to fetch the full reaction data to get the profile relation
+               const { data: reactionData } = await supabase
+                   .from('message_reactions')
+                   .select('*, profiles(id, username, display_name, avatar_url)')
+                   .eq('id', newReaction.id)
+                   .single();
+               
+               if (reactionData) {
+                   setMessages(prev => prev.map(msg => {
+                       if (msg.id === messageId) {
+                           const currentReactions = msg.reactions || [];
+                           // Avoid duplicates
+                           if (currentReactions.some(r => r.id === reactionData.id)) return msg;
+                           return { ...msg, reactions: [...currentReactions, reactionData] };
+                       }
+                       return msg;
+                   }));
+               }
+           }
         }
       )
       .subscribe();
@@ -563,6 +619,7 @@ export const Messages = ({
     setHasMoreMessages(true);
     setIsLoadingMore(false);
 
+    // UPDATED: Fetch all fields (*) and join reactions + their profiles
     const { data: messagesData, count } = await supabase
       .from('messages')
       .select('id, sender_id, recipient_id, content, created_at, media_url, media_type, read, reply_to_id', { count: 'exact' })
@@ -619,6 +676,7 @@ export const Messages = ({
     const container = messagesContainerRef.current;
     const oldScrollHeight = container?.scrollHeight;
 
+    // UPDATED: Fetch all fields (*) and join reactions + their profiles
     const { data: messagesData, count } = await supabase
       .from('messages')
       .select('id, sender_id, recipient_id, content, created_at, media_url, media_type, read, reply_to_id', { count: 'exact' })
