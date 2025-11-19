@@ -109,7 +109,7 @@ const getCroppedImageBlob = (imageFile: File, type: 'avatar' | 'banner', scale: 
 };
 // --- END: CROP UTILITY FUNCTIONS ---
 
-export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; onMessage?: (profile: ProfileType) => void; onSettings?: () => void }) => {
+export const Profile = ({ userId, initialPostId, onMessage, onSettings }: { userId?: string; initialPostId?: string; onMessage?: (profile: ProfileType) => void; onSettings?: () => void }) => {
   const [profile, setProfile] = useState<ProfileType | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [isEditing, setIsEditing] = useState(false);
@@ -154,6 +154,9 @@ export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; on
   const [isLoadingLikes, setIsLoadingLikes] = useState(false);
   const [isLikesLoaded, setIsLikesLoaded] = useState(false);
   // --- TABS STATE END ---
+  
+  // --- POST LIGHTBOX STATE ---
+  const [viewingPost, setViewingPost] = useState<Post | null>(null);
 
   const openLightbox = (url: string, type: 'image' | 'video') => {
     setLightboxMediaUrl(url);
@@ -385,17 +388,30 @@ export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; on
             return p;
         });
     });
+    
+    // 4. Update viewing post if open
+    if (viewingPost && viewingPost.id === updatedPost.id) {
+        setViewingPost(prev => {
+           if (!prev) return null;
+           const wasLiked = likedPostIds.has(prev.id);
+           return { ...prev, like_count: Math.max(0, prev.like_count + (wasLiked ? -1 : 1)) };
+        });
+    }
   };
 
   const handleCommentUpdate = (updatedPost: Post) => {
      setPosts(prev => prev.map(p => p.id === updatedPost.id ? { ...p, comment_count: updatedPost.comment_count } : p));
      setLikedPosts(prev => prev.map(p => p.id === updatedPost.id ? { ...p, comment_count: updatedPost.comment_count } : p));
+     if (viewingPost && viewingPost.id === updatedPost.id) {
+         setViewingPost(prev => prev ? { ...prev, comment_count: updatedPost.comment_count } : null);
+     }
   };
   
   const handleDeletePost = async (post: Post) => {
       // Optimistic update
       setPosts(prev => prev.filter(p => p.id !== post.id));
       setLikedPosts(prev => prev.filter(p => p.id !== post.id));
+      if (viewingPost && viewingPost.id === post.id) setViewingPost(null);
       
       const { error } = await supabase.from('posts').delete().eq('id', post.id);
       if (error) {
@@ -582,6 +598,32 @@ export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; on
       };
     }
   }, [targetUserId, isOwnProfile, loadProfile, loadPosts, loadFollowStats, checkFollowing, getPostCounts]);
+  
+  // --- HANDLE INITIAL POST LOAD ---
+  useEffect(() => {
+      if (initialPostId) {
+          const fetchPost = async () => {
+              const { data } = await supabase
+                  .from('posts')
+                  .select('*, profiles(*)')
+                  .eq('id', initialPostId)
+                  .single();
+              
+              if (data) {
+                  const { likeCounts, commentCounts } = await getPostCounts([data.id]);
+                  const postWithCounts = {
+                      ...data,
+                      like_count: likeCounts[data.id] || 0,
+                      comment_count: commentCounts[data.id] || 0
+                  };
+                  setViewingPost(postWithCounts);
+                  fetchUserLikes([postWithCounts]);
+              }
+          };
+          fetchPost();
+      }
+  }, [initialPostId, getPostCounts, fetchUserLikes]);
+
 
   const loadFollowers = async () => {
     const { data } = await supabase
@@ -675,6 +717,7 @@ export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; on
 
   const goToProfile = async (profileId: string) => {
     closeModal();
+    setViewingPost(null); // Close modal if navigating
     const { data } = await supabase.from('profiles').select('username').eq('id', profileId).single();
     if (data) {
       window.history.replaceState({}, '', `/?${data.username}`);
@@ -1052,6 +1095,29 @@ export const Profile = ({ userId, onMessage, onSettings }: { userId?: string; on
           </div>
         )}
       </div>
+      
+      {/* --- POST LIGHTBOX MODAL --- */}
+      {viewingPost && (
+          <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4" onClick={() => { setViewingPost(null); window.history.replaceState({}, '', '/'); }}>
+              <div className="bg-[rgb(var(--color-surface))] w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl overflow-y-auto border border-[rgb(var(--color-border))]" onClick={e => e.stopPropagation()}>
+                  <div className="sticky top-0 z-10 bg-[rgb(var(--color-surface))] border-b border-[rgb(var(--color-border))] p-4 flex justify-between items-center">
+                      <h3 className="font-bold text-lg">Post</h3>
+                      <button onClick={() => { setViewingPost(null); window.history.replaceState({}, '', '/'); }} className="p-1 rounded-full hover:bg-[rgb(var(--color-surface-hover))]">
+                          <X size={24} />
+                      </button>
+                  </div>
+                  <PostItem 
+                     post={viewingPost}
+                     currentUserId={user?.id}
+                     isLiked={likedPostIds.has(viewingPost.id)}
+                     onLikeToggle={handleLikeToggle}
+                     onCommentUpdate={handleCommentUpdate}
+                     onNavigateToProfile={goToProfile}
+                     onDelete={handleDeletePost}
+                  />
+              </div>
+          </div>
+      )}
 
       {/* AVATAR CROP MODAL (with actual cropping logic and zoom simulation) */}
       {showAvatarCropModal && avatarFileToCrop && (
