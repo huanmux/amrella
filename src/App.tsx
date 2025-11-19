@@ -41,19 +41,6 @@ const Main = () => {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
 
-// === CHECK PENDING INVITE ON LOGIN ===
-  useEffect(() => {
-    if (user) {
-      const storedInvite = localStorage.getItem('pending_invite');
-      if (storedInvite) {
-        setPendingGazeboInvite(storedInvite);
-        setView('messages');
-        setInitialTab('gazebos');
-        localStorage.removeItem('pending_invite'); // Consume the invite
-      }
-    }
-  }, [user]);
-
   // === COMPREHENSIVE URL ROUTING ===
   useEffect(() => {
     const handleRouting = async () => {
@@ -65,18 +52,11 @@ const Main = () => {
       const queryInvite = search.get('invite');
       const inviteCode = pathInviteMatch ? pathInviteMatch[1] : queryInvite;
 
-      if (inviteCode) {
-        if (user) {
-          setPendingGazeboInvite(inviteCode);
-          setView('messages');
-          setInitialTab('gazebos');
-          if (pathInviteMatch) navigate('/message', { replace: true }); 
-        } else {
-          // User not logged in: Store invite and redirect to auth
-          localStorage.setItem('pending_invite', inviteCode);
-          // Redirect to root to show Auth component, but keep history clean
-          navigate('/', { replace: true }); 
-        }
+      if (inviteCode && user) {
+        setPendingGazeboInvite(inviteCode);
+        setView('messages');
+        setInitialTab('gazebos');
+        if (pathInviteMatch) navigate('/message', { replace: true }); 
         return;
       }
 
