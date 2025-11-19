@@ -26,8 +26,8 @@ const Main = () => {
   const [pageSlug, setPageSlug] = useState<string>('');
   const [selectedProfileId, setSelectedProfileId] = useState<string | undefined>();
   const [showSearch, setShowSearch] = useState(false);
+  const [selectedPostId, setSelectedPostId] = useState<string | undefined>(); // NEW: For post deep links
   
-  // --- STATE FIX: Added pendingGazeboId ---
   const [pendingGazeboInvite, setPendingGazeboInvite] = useState<string | null>(null);
   const [pendingGazeboId, setPendingGazeboId] = useState<string | null>(null);
   const [initialTab, setInitialTab] = useState<'chats' | 'gazebos'>('chats');
@@ -41,34 +41,133 @@ const Main = () => {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // === Auto-join via /invite/:code ===
+  // === COMPREHENSIVE URL ROUTING ===
   useEffect(() => {
-    const match = location.pathname.match(/^\/invite\/([a-zA-Z0-9-]{3,20})$/); 
-    if (match && user) {
-      const code = match[1];
-      setPendingGazeboInvite(code);
-      setView('messages');
-      navigate('/message'); 
-    }
-  }, [location.pathname, user, navigate]);
+    const handleRouting = async () => {
+      const path = location.pathname;
+      const search = new URLSearchParams(location.search);
+      
+      // 1. Handle Invite Codes (/invite/:code or ?invite=:code)
+      const pathInviteMatch = path.match(/^\/invite\/([a-zA-Z0-9-]{3,20})$/);
+      const queryInvite = search.get('invite');
+      const inviteCode = pathInviteMatch ? pathInviteMatch[1] : queryInvite;
 
-  // === NEW: Handle /gazebo route ===
-  useEffect(() => {
-    const path = location.pathname;
-    // Matches /gazebo or /gazebo/UUID
-    const match = path.match(/^\/gazebo\/?([a-zA-Z0-9-]{0,})?$/);
-    
-    if (match && user) {
-      const gazeboId = match[1];
-      setInitialTab('gazebos');
-      if (gazeboId) {
-        setPendingGazeboId(gazeboId);
+      if (inviteCode && user) {
+        setPendingGazeboInvite(inviteCode);
+        setView('messages');
+        setInitialTab('gazebos');
+        // If it was a path, normalize it
+        if (pathInviteMatch) navigate('/message'); 
+        return;
       }
-      setView('messages');
-      // Clean URL visually without reloading
-      window.history.replaceState({}, '', '/message'); 
-    }
-  }, [location.pathname, user]);
+
+      // 2. Handle Gazebos (/gazebo/:id or ?gazebo=:id)
+      const pathGazeboMatch = path.match(/^\/gazebo\/?([a-zA-Z0-9-]{0,})?$/);
+      const queryGazeboId = search.get('gazebo');
+      const gazeboId = pathGazeboMatch ? pathGazeboMatch[1] : queryGazeboId;
+
+      if ((gazeboId || pathGazeboMatch) && user) {
+        setInitialTab('gazebos');
+        if (gazeboId) setPendingGazeboId(gazeboId);
+        setView('messages');
+        if (pathGazeboMatch) window.history.replaceState({}, '', '/message');
+        return;
+      }
+
+      // 3. Handle Status Deep Links (?status=:id)
+      const statusId = search.get('status');
+      if (statusId && user) {
+        // We need to fetch the status to know who it belongs to and open the viewer
+        const { data: statusData } = await supabase
+          .from('statuses')
+          .select('*, profiles!user_id(*)')
+          .eq('id', statusId)
+          .single();
+        
+        if (statusData) {
+          const profileWithStatus = {
+             ...statusData.profiles,
+             statuses: [statusData],
+             hasUnseen: false
+          };
+          // Dispatch event to open viewer
+          window.dispatchEvent(new CustomEvent('openStatusViewer', {
+             detail: {
+               users: [profileWithStatus],
+               initialUserId: statusData.user_id
+             }
+          }));
+          setView('feed'); // Default to feed behind the modal
+        }
+        return;
+      }
+
+      // 4. Handle Post Deep Links (?post=:id)
+      const postId = search.get('post');
+      if (postId) {
+         const { data: postData } = await supabase
+            .from('posts')
+            .select('user_id')
+            .eq('id', postId)
+            .single();
+         
+         if (postData) {
+             setSelectedProfileId(postData.user_id);
+             setSelectedPostId(postId);
+             setView('profile');
+             return;
+         }
+      }
+
+      // 5. Handle Profile (?user=:username)
+      const usernameQuery = search.get('user');
+      if (usernameQuery) {
+         const { data } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('username', usernameQuery.toLowerCase())
+            .single();
+         if (data) {
+            setSelectedProfileId(data.id);
+            setView('profile');
+            return;
+         }
+      }
+      
+      // 6. Handle Standard Routes
+      if (path === '/message') {
+        setView('messages');
+        return;
+      }
+      if (path === '/stats') {
+        setView('stats');
+        return;
+      }
+      
+      // 7. Custom Page Slugs
+      const slugMatch = path.match(/^\/([a-zA-Z0-9-]+)$/);
+      if (slugMatch) {
+         const slug = slugMatch[1];
+         if (slug !== 'user' && slug !== 'invite' && slug !== 'gazebo') {
+             setView('page');
+             setPageSlug(slug);
+             return;
+         }
+      }
+
+      // Default
+      if (path === '/') {
+          setView('feed');
+          setSelectedProfileId(undefined);
+          setSelectedPostId(undefined);
+      }
+
+    };
+    
+    handleRouting();
+
+  }, [location.pathname, location.search, user, navigate]);
+
 
   // Set theme from profile
   useEffect(() => {
@@ -155,141 +254,6 @@ const Main = () => {
 
   }, [user]);
 
-  // === URL PROFILE LOOKUP ===
-  useEffect(() => {
-    const checkUrlForProfile = async () => {
-      const search = window.location.search;
-      const path = window.location.pathname;
-      let username: string | null = null;
-      
-      if (path === '/' || path === '/user') {
-          if (search.startsWith('?') && !search.includes('=')) {
-              username = search.slice(1);
-          }
-      }
-
-      const userParamMatch = search.match(/\?user=([^&]+)/);
-      if (userParamMatch) {
-        username = userParamMatch[1];
-      }
-      
-      if (!username || username.includes('/')) return;
-
-      try {
-        const { data } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('username', username.toLowerCase())
-          .single();
-
-        if (data) {
-          setSelectedProfileId(data.id);
-          setView('profile');
-        }
-      } catch (err) {
-        // Ignore
-      }
-    };
-
-    checkUrlForProfile();
-    window.addEventListener('popstate', checkUrlForProfile);
-    return () => window.removeEventListener('popstate', checkUrlForProfile);
-  }, []);
-
-  // === CUSTOM PAGE ROUTING ===
-  useEffect(() => {
-    const path = location.pathname;
-    const search = location.search;
-    
-    // Prevent redirect looping on invite links
-    if (path.startsWith('/invite/') || path.startsWith('/gazebo')) return;
-
-    if (path === '/' || path === '/user') {
-        const usernameQuery = search.startsWith('?') ? search.slice(1) : search;
-        let username = null;
-        if (usernameQuery && !usernameQuery.includes('=')) {
-            username = usernameQuery;
-        } else if (usernameQuery.startsWith('user=')) {
-            const userMatch = usernameQuery.match(/^user=([^&]+)/);
-            if (userMatch) username = userMatch[1];
-        }
-        
-        if (username && !username.includes('/')) return;
-        
-        setView('feed');
-        setPageSlug('');
-        setSelectedProfileId(undefined);
-        return;
-    }
-    
-    if (path === '/message') {
-        const username = search.startsWith('?') ? search.slice(1) : search;
-        if (username && !username.includes('/')) {
-            const lookupAndMessage = async () => {
-                try {
-                    if (!user) {
-                         setView('feed');
-                         return;
-                    }
-                    const { data } = await supabase
-                        .from('profiles')
-                        .select('*')
-                        .eq('username', username.toLowerCase())
-                        .single();
-                    
-                    if (data) {
-                        setView('messages');
-                        setSelectedProfileId(undefined);
-                        setTimeout(() => {
-                          window.dispatchEvent(new CustomEvent('openDirectMessage', { detail: data }));
-                        }, 0);
-                    } else {
-                        setView('feed');
-                    }
-                } catch (err) {
-                    setView('feed');
-                }
-            };
-            lookupAndMessage();
-            return;
-        }
-        
-        if (user) {
-            setView('messages');
-            setSelectedProfileId(undefined);
-            return;
-        }
-        setView('feed');
-        return;
-    }
-
-    if (path === '/stats') {
-      setView('stats');
-      setPageSlug('');
-      setSelectedProfileId(undefined);
-      return;
-    }
-
-    const match = path.match(/^\/([a-zA-Z0-9-]+)$/);
-    if (match) {
-      const slug = match[1];
-      if (slug === 'user') {
-          setView('feed');
-          setPageSlug('');
-          setSelectedProfileId(undefined);
-          return;
-      }
-      setView('page');
-      setPageSlug(slug);
-      setSelectedProfileId(undefined);
-      return;
-    }
-
-    setView('feed');
-    setPageSlug('');
-    setSelectedProfileId(undefined);
-  }, [location.pathname, location.search, user]); 
-
   // Keep internal navigation working
   useEffect(() => {
     const handler = (e: any) => {
@@ -359,7 +323,7 @@ const Main = () => {
               <a href="/" className="text-[rgb(var(--color-primary))] hover:text-[rgba(var(--color-primary),0.8)] font-bold">← Back to Home</a>
             </div>
           </div>
-          <Profile userId={selectedProfileId} />
+          <Profile userId={selectedProfileId} initialPostId={selectedPostId} />
         </div>
       );
     }
