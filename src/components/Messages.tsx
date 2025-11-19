@@ -606,7 +606,7 @@ export const Messages = ({
     // UPDATED: Fetch all fields (*) and join reactions + their profiles
     const { data: messagesData, count } = await supabase
       .from('messages')
-      .select('*, reactions:message_reactions(*, profiles(id, username, display_name, avatar_url))', { count: 'exact' })
+      .select('id, sender_id, recipient_id, content, created_at, media_url, media_type, read, reply_to_id', { count: 'exact' })
       .or(
         `and(sender_id.eq.${user!.id},recipient_id.eq.${recipientId}),and(sender_id.eq.${recipientId},recipient_id.eq.${user!.id})`
       )
@@ -663,7 +663,7 @@ export const Messages = ({
     // UPDATED: Fetch all fields (*) and join reactions + their profiles
     const { data: messagesData, count } = await supabase
       .from('messages')
-      .select('*, reactions:message_reactions(*, profiles(id, username, display_name, avatar_url))', { count: 'exact' })
+      .select('id, sender_id, recipient_id, content, created_at, media_url, media_type, read, reply_to_id', { count: 'exact' })
       .or(
         `and(sender_id.eq.${user!.id},recipient_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},recipient_id.eq.${user!.id})`
       )
