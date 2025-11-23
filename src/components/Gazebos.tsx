@@ -4,6 +4,7 @@ import { supabase, Profile, Gazebo, GazeboChannel, GazeboMessage, uploadMedia } 
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { GazeboVC } from './GazeboVC';
+import { MessageEmbed } from './MessageEmbed';
 import {
   Hash, Volume2, Plus, Settings, Users, X, Send, Paperclip, Mic, Link as LinkIcon,
   Trash2, Edit3, Copy, Crown, Shield, ChevronDown, Menu,
