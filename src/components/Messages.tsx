@@ -321,7 +321,7 @@ export const Messages = ({
     if (!lastSeen) return false;
     const lastSeenDate = new Date(lastSeen);
     const now = new Date();
-    return (now.getTime() - lastSeenDate.getTime()) < 300000;
+    return (now.getTime() - lastSeenDate.getTime()) < 60000; // user online status calculation delay
   };
 
   const formatLastSeen = (lastSeen: string | null | undefined): string | null => {
@@ -330,8 +330,8 @@ export const Messages = ({
     const lastSeenDate = new Date(lastSeen);
     const now = new Date();
     const diffMs = now.getTime() - lastSeenDate.getTime();
-    const FIVE_MINUTES = 300000;
-    if (diffMs < FIVE_MINUTES) return null;
+    const ONLINE_THRESHOLD = 60000; // user online status calculation delay
+    if (diffMs < ONLINE_THRESHOLD) return null;
 
     const diffSeconds = Math.floor(diffMs / 1000);
     const days = Math.floor(diffSeconds / (60 * 60 * 24));
