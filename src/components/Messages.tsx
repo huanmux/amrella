@@ -474,27 +474,37 @@ export const Messages = ({
         'postgres_changes',
         { event: '*', schema: 'public', table: 'message_reactions' },
         async (payload) => {
-           const newReaction = payload.new as any;
-           const oldReaction = payload.old as any;
-           const messageId = newReaction?.message_id || oldReaction?.message_id;
-
+           // Handle DELETE
            if (payload.eventType === 'DELETE') {
+               const oldReaction = payload.old as any;
+               
+               // Update Messages List
                setMessages(prev => prev.map(msg => {
-                   if (msg.id === messageId && msg.reactions) {
-                       return { ...msg, reactions: msg.reactions.filter(r => r.id !== oldReaction.id) };
+                   // Check if this message has the reaction being deleted
+                   if (msg.reactions?.some(r => r.id === oldReaction.id)) {
+                       return { 
+                           ...msg, 
+                           reactions: msg.reactions.filter(r => r.id !== oldReaction.id) 
+                       };
                    }
                    return msg;
                }));
                
-               // NEW: Update modal if it's open for this message
+               // Update Modal if open
                setViewingReactionsFor(prev => {
-                   if (prev && prev.id === messageId && prev.reactions) {
+                   if (prev && prev.reactions?.some(r => r.id === oldReaction.id)) {
                        return { ...prev, reactions: prev.reactions.filter(r => r.id !== oldReaction.id) };
                    }
                    return prev;
                });
 
-           } else if (payload.eventType === 'INSERT') {
+           } 
+           // Handle INSERT
+           else if (payload.eventType === 'INSERT') {
+               const newReaction = payload.new as any;
+               const messageId = newReaction.message_id;
+
+               // Fetch full profile data for the new reaction
                const { data: reactionData } = await supabase
                    .from('message_reactions')
                    .select('*, profiles(id, username, display_name, avatar_url)')
@@ -505,13 +515,14 @@ export const Messages = ({
                    setMessages(prev => prev.map(msg => {
                        if (msg.id === messageId) {
                            const currentReactions = msg.reactions || [];
+                           // Prevent duplicates
                            if (currentReactions.some(r => r.id === reactionData.id)) return msg;
                            return { ...msg, reactions: [...currentReactions, reactionData] };
                        }
                        return msg;
                    }));
                    
-                   // NEW: Update modal if open
+                   // Update Modal if open
                    setViewingReactionsFor(prev => {
                        if (prev && prev.id === messageId && prev.reactions) {
                            if (prev.reactions.some(r => r.id === reactionData.id)) return prev;
@@ -520,27 +531,37 @@ export const Messages = ({
                        return prev;
                    });
                }
-           } else if (payload.eventType === 'UPDATE') {
-               // NEW: Handle UPDATE (switching emoji)
+           } 
+           // Handle UPDATE (Emoji switch)
+           else if (payload.eventType === 'UPDATE') {
+               const newReaction = payload.new as any;
+               
+               // Update Messages List
                setMessages(prev => prev.map(msg => {
-                   if (msg.id === messageId && msg.reactions) {
+                   // Check if this message has the reaction being updated
+                   if (msg.reactions?.some(r => r.id === newReaction.id)) {
                        return {
                            ...msg,
                            reactions: msg.reactions.map(r => 
-                               r.id === newReaction.id ? { ...r, emoji: newReaction.emoji } : r
+                               r.id === newReaction.id 
+                               // Only update the emoji, keep the existing profile data!
+                               ? { ...r, emoji: newReaction.emoji } 
+                               : r
                            )
                        };
                    }
                    return msg;
                }));
 
-               // NEW: Update modal if open
+               // Update Modal if open
                setViewingReactionsFor(prev => {
-                   if (prev && prev.id === messageId && prev.reactions) {
+                   if (prev && prev.reactions?.some(r => r.id === newReaction.id)) {
                        return {
                            ...prev,
                            reactions: prev.reactions.map(r => 
-                               r.id === newReaction.id ? { ...r, emoji: newReaction.emoji } : r
+                               r.id === newReaction.id 
+                               ? { ...r, emoji: newReaction.emoji } 
+                               : r
                            )
                        };
                    }
