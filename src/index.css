@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+cursor: url('/cursor.png'), auto;
+
 /* ==========================================
  THEME CSS VARIABLES
  Defined using RGB values for opacity control (e.g., bg-[rgba(var(--color-primary),.1)])
