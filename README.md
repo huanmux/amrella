@@ -2,14 +2,14 @@
 easy-to-host social platforms for everyone
 
 ```
-Current version: 1.0.9B
+Current version: 1.0.9C
 ```
 
 ### What makes LiaoTian (LT) so special from already existing social media/networking platforms?
 
 This is a project where **anyone can easily fork/clone and deploy their own** versions of this platform. This GitHub repository provides a sort of boilerplate template for making your own such platforms, in a way.
 Unlike Mastodon and other open-source and decentralized or fediverse alternatives like this, the code is **compiled into a static site**, meaning it can be easily **hosted on most free hosting providers** for $0. All it needs is a database connection via Supabase. The content **behaves as if it is dynamic and real-time**, thanks to both Vercel (as what we have used) and Supabase's real-time API features.
-Also to get started on developing your own version of LiaoTian, it's much simpler than most other "templates" out there, since it uses **only 17 files** for its actual codebase (as of now).
+Also to get started on developing your own version of LiaoTian, it's much simpler than most other "templates" out there, since it uses **only 18 files** for its actual codebase (as of now).
 
 ## 👤 Use LiaoTian itself
 If you just want to create an account on **Liaoverse** (our official deployment) then [sign up here](https://liaoverse.xyz/).
@@ -56,10 +56,10 @@ If you just want to create an account on **Liaoverse** (our official deployment)
 - [x] Message read receipts (checkmarks)
 - [x] Groupchat functionality with 2 modes - singular channel (like WhatsApp, Messenger, Telegram) or multi channel (like Discord, Slack, Matrix).
 - [x] Reactions for messages
-- [x] Paste from clipboard to messages (in Gazebos till now)
+- [x] Paste from clipboard to messages
 - [x] Public post sharing via context menu
 - [x] Gazebo joining Welcome page
-- [ ] Embed links
+- [x] Embed links
 - [ ] Create and manage groups
 - [ ] Posting long-form content, e.g. blogs
 - [ ] Hashtags
@@ -76,12 +76,8 @@ If you just want to create an account on **Liaoverse** (our official deployment)
 ## 🚨 Current flaws
 - [ ] Cookie “__cf_bm” has been rejected for invalid domain. Browser console error logs sometimes.
 - [ ] audio and video calling may require a turn server
-- [ ] Gazebos lack smooth UI UX + audio message previews missing
-- [ ] Gazebos lack emoji reactions
 - [ ] Gazebo "message" button on user profile card not opening DM directly (requires a refresh)
-- [ ] Messages emoji reactions not showing up on frontend
 - [ ] Current App.tsx URL param handling messes up non-conventional usernames (previous versions allowed them)
-- [ ] App.tsx navbar message icon notification dot staying on, even after reading all (until refreshing)
 
 ---
 
