@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase, Post, uploadMedia } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Send, Edit3, FileText, X, Paperclip, LayoutGrid, Smartphone } from 'lucide-react';
+import { Send, Edit3, FileText, X, Paperclip, LayoutGrid, Smartphone, Gift, Search } from 'lucide-react';
 import { Shots } from './Shots';
 import { StatusTray } from './Status';
 import { PostItem, AudioPlayer } from './Post'; // Import PostItem and reused AudioPlayer for composer preview
@@ -27,6 +27,31 @@ export const Feed = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'shots'>('posts');
+
+  // --- GIF STATES ---
+  const [showGifPicker, setShowGifPicker] = useState(false);
+  const [gifQuery, setGifQuery] = useState('');
+  const [gifs, setGifs] = useState<any[]>([]);
+
+  const searchGifs = async (query: string = '') => {
+    const apiKey = import.meta.env.VITE_TENOR_API_KEY;
+    if (!apiKey) return;
+    const searchUrl = query 
+      ? `https://tenor.googleapis.com/v2/search?q=${query}&key=${apiKey}&client_key=gazebo_app&limit=12&media_filter=minimal`
+      : `https://tenor.googleapis.com/v2/featured?key=${apiKey}&client_key=gazebo_app&limit=12&media_filter=minimal`;
+    
+    try {
+        const res = await fetch(searchUrl);
+        const data = await res.json();
+        setGifs(data.results || []);
+    } catch (e) {
+        console.error("Tenor Error", e);
+    }
+  };
+
+  useEffect(() => {
+    if (showGifPicker) searchGifs(gifQuery);
+  }, [showGifPicker, gifQuery]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null); // Ref for WebGL
 
@@ -328,10 +353,47 @@ export const Feed = () => {
               </div>
             )}
             {isUploading && <div className="w-full bg-[rgb(var(--color-border))] rounded-full h-2 overflow-hidden"><div className="bg-[rgba(var(--color-accent),1)] h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} /></div>}
+            {/* GIF PICKER UI */}
+            {showGifPicker && (
+              <div className="relative border border-[rgb(var(--color-border))] rounded-xl overflow-hidden bg-[rgb(var(--color-background))] h-64 flex flex-col mb-3">
+                 <div className="p-2 border-b border-[rgb(var(--color-border))] flex gap-2">
+                    <Search size={16} className="text-[rgb(var(--color-text-secondary))]" />
+                    <input 
+                      type="text" 
+                      placeholder="Search GIFs..." 
+                      className="flex-1 bg-transparent text-sm outline-none text-[rgb(var(--color-text))]"
+                      value={gifQuery}
+                      onChange={(e) => setGifQuery(e.target.value)}
+                      autoFocus
+                    />
+                    <button type="button" onClick={() => setShowGifPicker(false)}><X size={16} className="text-[rgb(var(--color-text-secondary))]" /></button>
+                 </div>
+                 <div className="flex-1 overflow-y-auto p-2 grid grid-cols-3 gap-2">
+                    {gifs.map(gif => (
+                       <img 
+                          key={gif.id}
+                          src={gif.media_formats.tinygif.url}
+                          alt="GIF"
+                          className="w-full h-24 object-cover rounded cursor-pointer hover:opacity-80"
+                          onClick={() => {
+                             setRemoteUrl(gif.media_formats.gif.url);
+                             setFile(null);
+                             setShowGifPicker(false);
+                          }}
+                       />
+                    ))}
+                 </div>
+              </div>
+            )}
+
             <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt" onChange={(e) => { setFile(e.target.files?.[0] || null); setRemoteUrl(''); }} className="hidden" />
             <div className="flex gap-2 items-center flex-wrap">
               <button type="button" onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-[rgb(var(--color-surface-hover))] rounded-full text-sm hover:bg-[rgb(var(--color-border))] transition flex items-center gap-2 text-[rgb(var(--color-text))]"><Paperclip size={16} className="text-[rgb(var(--color-text-secondary))]" /> {file ? 'Change File' : 'Attach'}</button>
-              <div className="flex items-center gap-1"><span className="text-xs text-[rgb(var(--color-text-secondary))]">or</span><input type="url" value={remoteUrl} onChange={(e) => { setRemoteUrl(e.target.value); setFile(null); }} placeholder="Paste image/video/audio/file URL..." className="flex-1 min-w-0 px-3 py-1.5 text-sm border border-[rgb(var(--color-border))] bg-[rgb(var(--color-surface))] rounded-full focus:outline-none focus:border-[rgb(var(--color-accent))] text-[rgb(var(--color-text))]" /></div>
+              <button type="button" onClick={() => setShowGifPicker(!showGifPicker)} className="px-4 py-2 bg-[rgb(var(--color-surface-hover))] rounded-full text-sm hover:bg-[rgb(var(--color-border))] transition flex items-center gap-2 text-[rgb(var(--color-text))]">
+                 <Gift size={16} className="text-pink-500" /> GIF
+              </button>
+
+              <div className="flex items-center gap-1"><span className="text-xs text-[rgb(var(--color-text-secondary))]">or</span><input type="url" value={remoteUrl} onChange={(e) => { setRemoteUrl(e.target.value); setFile(null); }} placeholder="Paste URL..." className="flex-1 min-w-0 px-3 py-1.5 text-sm border border-[rgb(var(--color-border))] bg-[rgb(var(--color-surface))] rounded-full focus:outline-none focus:border-[rgb(var(--color-accent))] text-[rgb(var(--color-text))]" /></div>
               <button type="submit" disabled={isUploading || (!content.trim() && !file && !remoteUrl.trim())} className="ml-auto bg-[rgba(var(--color-accent),1)] disabled:bg-[rgb(var(--color-border))] text-[rgb(var(--color-text-on-primary))] px-6 py-2 rounded-full hover:bg-[rgba(var(--color-primary),1)] flex items-center gap-2 font-semibold transition"><Send size={16} /> {isUploading ? 'Uploading...' : 'Post'}</button>
             </div>
           </form>
