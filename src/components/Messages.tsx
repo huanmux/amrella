@@ -4,6 +4,7 @@ import { supabase, Message, Profile, uploadMedia, MessageReaction } from '../lib
 import { useAuth } from '../contexts/AuthContext';
 import { Send, BadgeCheck, Search, ArrowLeft, X, Paperclip, FileText, Link, CornerUpLeft, Phone, Video, Mic, Play, Pause, Check, CheckCheck, MessageSquare, Users, Smile, Image as ImageIcon, Film, Music, Folder, FileIcon, MoreVertical, ChevronDown } from 'lucide-react';
 import { MessageEmbed } from './MessageEmbed';
+import { EmojiPicker } from './EmojiPicker';
 
 // Lazy load components to prevent Circular Dependency ReferenceErrors
 const Calls = lazy(() => import('./Calls').then(module => ({ default: module.Calls })));
@@ -213,6 +214,9 @@ export const Messages = ({
   const [reactionMenu, setReactionMenu] = useState<{ messageId: string, x: number, y: number, isOutgoing: boolean } | null>(null);
   // NEW: State to control the "Who Reacted" modal
   const [viewingReactionsFor, setViewingReactionsFor] = useState<AppMessage | null>(null);
+  const [showFullEmojiPicker, setShowFullEmojiPicker] = useState(false);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const isLongPress = useRef(false);
 
   // --- MEDIA GALLERY STATE ---
   const [showMediaGallery, setShowMediaGallery] = useState(false);
@@ -1077,12 +1081,10 @@ export const Messages = ({
             onContextMenu={(e) => { e.preventDefault(); setReactionMenu(null); }}
         >
             <div 
-                className="absolute p-1 bg-[rgb(var(--color-surface))] rounded-2xl shadow-xl flex gap-1 z-50 pointer-events-auto border border-[rgb(var(--color-border))] animate-in fade-in zoom-in-95 duration-100"
+                className="absolute p-2 bg-[rgb(var(--color-surface))] rounded-full shadow-xl flex items-center gap-2 z-50 pointer-events-auto border border-[rgb(var(--color-border))] animate-in fade-in zoom-in-95 duration-200 origin-bottom"
                 style={{ 
-                    top: reactionMenu.y - 50, 
-                    left: reactionMenu.isOutgoing 
-                        ? reactionMenu.x - 150
-                        : reactionMenu.x
+                    top: reactionMenu.y - 60, // Positioned slightly above the message
+                    left: Math.min(window.innerWidth - 320, Math.max(10, reactionMenu.x - 100)) // Smart clamping to screen edges
                 }}
                 onClick={e => e.stopPropagation()} 
             >
@@ -1090,13 +1092,35 @@ export const Messages = ({
                     <button
                         key={emoji}
                         onClick={() => handleReaction(reactionMenu.messageId, emoji)}
-                        className="text-2xl p-2 rounded-xl hover:bg-[rgb(var(--color-surface-hover))] transition transform hover:scale-110"
+                        className="text-2xl p-2 rounded-full hover:bg-[rgb(var(--color-surface-hover))] hover:scale-125 transition transform duration-200"
                     >
                         {emoji}
                     </button>
                 ))}
+                <div className="w-px h-8 bg-[rgb(var(--color-border))]" />
+                <button
+                    onClick={() => {
+                        setShowFullEmojiPicker(true);
+                        // Keep reactionMenu open in state to know which message ID to apply to, 
+                        // but visually we might cover it with the picker modal.
+                    }}
+                    className="p-2 rounded-full hover:bg-[rgb(var(--color-surface-hover))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-accent))] transition"
+                >
+                    <Plus size={20} />
+                </button>
             </div>
         </div>
+        )}
+
+      {/* Full Emoji Picker Modal */}
+      {showFullEmojiPicker && reactionMenu && (
+          <EmojiPicker 
+              onSelect={(emoji) => {
+                  handleReaction(reactionMenu.messageId, emoji);
+                  setShowFullEmojiPicker(false);
+              }}
+              onClose={() => setShowFullEmojiPicker(false)}
+          />
       )}
 
       {/* Reaction Details Modal */}
@@ -1458,7 +1482,30 @@ export const Messages = ({
 
                   {/* Message Bubble */}
                   <div
-                    className={`relative max-w-[85%] md:max-w-[70%] lg:max-w-[60%] min-w-0 px-3 py-1.5 shadow-sm break-words
+                    onContextMenu={(e) => {
+                        e.preventDefault(); // Prevent native browser context menu
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setReactionMenu({ messageId: msg.id, x: rect.left + (rect.width / 2), y: rect.top, isOutgoing: isMe });
+                    }}
+                    onTouchStart={(e) => {
+                        isLongPress.current = false;
+                        longPressTimer.current = setTimeout(() => {
+                            isLongPress.current = true;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            // Mobile vibration feedback
+                            if (navigator.vibrate) navigator.vibrate(50);
+                            setReactionMenu({ messageId: msg.id, x: rect.left + (rect.width / 2), y: rect.top, isOutgoing: isMe });
+                        }, 500); // 500ms long press
+                    }}
+                    onTouchEnd={() => {
+                        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+                    }}
+                    onTouchMove={() => {
+                        // If user scrolls, cancel long press
+                        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+                    }}
+                    // Keep the existing classes
+                    className={`relative max-w-[85%] md:max-w-[70%] lg:max-w-[60%] min-w-0 px-3 py-1.5 shadow-sm break-words select-none cursor-pointer
                       ${isMe 
                         ? `bg-gradient-to-br from-[rgb(var(--color-primary))] to-[rgb(var(--color-accent))] text-[rgb(var(--color-text-on-primary))] rounded-2xl rounded-tr-sm ${!isLastInGroup ? 'mb-0.5' : ''}`
                         : `bg-[rgb(var(--color-surface))] text-[rgb(var(--color-text))] border border-[rgb(var(--color-border))] rounded-2xl rounded-tl-sm ${!isLastInGroup ? 'mb-0.5' : ''}`
@@ -1606,11 +1653,11 @@ export const Messages = ({
                     {replyingTo && (
                         <div className="px-4 pt-3 flex items-center justify-between">
                             <div className="flex items-center gap-2 px-3 py-2 bg-[rgb(var(--color-surface-hover))] rounded-xl w-full border-l-4 border-[rgb(var(--color-accent))]">
-                                <div className="flex-1 min-w-0">
-                                    <div className="text-xs font-bold text-[rgb(var(--color-accent))] mb-0.5">
+                                <div className="flex-1 min-w-0 overflow-hidden"> {/* Added overflow-hidden */}
+                                    <div className="text-xs font-bold text-[rgb(var(--color-accent))] mb-0.5 truncate"> {/* Added truncate to name too */}
                                         Replying to {replyingTo.sender_id === user!.id ? 'yourself' : selectedUser?.display_name}
                                     </div>
-                                    <p className="text-xs text-[rgb(var(--color-text-secondary))] truncate">
+                                    <p className="text-xs text-[rgb(var(--color-text-secondary))] truncate block">
                                         {replyingTo.content || <span className="italic">[{replyingTo.media_type || 'Media'}]</span>}
                                     </p>
                                 </div>
@@ -1680,7 +1727,7 @@ export const Messages = ({
                             onPaste={handlePaste}
                             placeholder={isRecording ? "Recording..." : "Message..."}
                             disabled={isRecording}
-                            className="flex-1 py-2.5 px-2 bg-transparent border-none focus:ring-0 resize-none text-sm text-[rgb(var(--color-text))] placeholder-[rgb(var(--color-text-secondary))] max-h-32 custom-scrollbar"
+                            className="flex-1 py-2.5 px-2 bg-transparent border-none resize-none text-sm text-[rgb(var(--color-text))] placeholder-[rgb(var(--color-text-secondary))] max-h-32 custom-scrollbar"
                             rows={1}
                             style={{ minHeight: '44px' }}
                             onKeyDown={(e) => {
