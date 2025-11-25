@@ -504,9 +504,9 @@ const StatusCreator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             text: textOverlay, 
             // UPDATED: Default position to bottom (Caption style)
             x: 50, 
-            y: 80, 
+            y: 85, 
             color: 'white',
-            fontSize: 24
+            fontSize: 12
           } : {},
           expires_at: expires_at
         });
@@ -1219,11 +1219,12 @@ const StatusViewer: React.FC<{
         </div>
         )}
         
-        {/* FIXED: Added w-full h-full to image for perfect centering */}
+        {/* Status Viewer */}
         <img 
           src={currentStory.media_type === 'image' ? currentStory.media_url : ''} 
           className={`w-full h-full object-contain mx-auto block transition-opacity ${currentStory.media_type === 'image' ? 'opacity-100' : 'opacity-0'}`} 
-          alt="" 
+          style={{ display: currentStory.media_type === 'image' ? 'block' : 'none' }}
+          alt="image not loaded" 
         />
         
         <video
@@ -1245,18 +1246,13 @@ const StatusViewer: React.FC<{
         />
 
         {overlay.text && (
-          <div 
-            className="absolute text-white p-2 bg-black/60 rounded"
-            style={{ 
-                left: `${overlay.x || 50}%`, 
-                top: `${overlay.y || 50}%`,
-                transform: `translate(-${overlay.x || 50}%, -${overlay.y || 50}%)`,
-                fontSize: `${overlay.fontSize || 24}px`,
-                color: overlay.color || 'white',
-                textShadow: '0px 0px 8px rgba(0,0,0,0.7)'
-            }}
-          >
-            {overlay.text}
+          <div className="absolute inset-0 pointer-events-none flex flex-col justify-end pb-20 z-30">
+            <div 
+                className="w-full text-center bg-black/40 text-white text-xl font-medium p-3 backdrop-blur-sm"
+                style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.8)' }}
+            >
+              {overlay.text}
+            </div>
           </div>
         )}
       </div>
