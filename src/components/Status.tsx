@@ -956,6 +956,7 @@ const StatusViewer: React.FC<{
   
   const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [isReplyInputFocused, setIsReplyInputFocused] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
   // NEW: Reply and Viewer state
@@ -1144,7 +1145,7 @@ const StatusViewer: React.FC<{
                   : (idx === currentStoryIndex ? videoDuration : 0)
               } 
               isActive={idx === currentStoryIndex}
-              isPaused={isPaused || isLoading}
+              isPaused={isPaused || isLoading || isReplyInputFocused}
               onFinished={goToNextStory} // <-- UPDATED to be universal
             />
           ))}
@@ -1276,6 +1277,8 @@ const StatusViewer: React.FC<{
                 type="text" 
                 value={replyContent}
                 onChange={(e) => setReplyContent(e.target.value)}
+                onFocus={() => setIsReplyInputFocused(true)}
+                onBlur={() => setIsReplyInputFocused(false)}
                 placeholder={`Reply to ${currentUser.display_name}...`} 
                 className="flex-1 p-3 rounded-full bg-white/20 border border-white/30 text-white placeholder-white/70 outline-none text-sm"
                 onClick={e => e.stopPropagation()}
