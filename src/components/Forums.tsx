@@ -145,7 +145,7 @@ export const Forums: React.FC = () => {
                  <Menu size={24} className="text-[rgb(var(--color-text))]" />
                </button>
                <h1 className="font-bold text-lg text-[rgb(var(--color-text))] truncate">
-                 {activeForum ? `r/${activeForum.name}` : 'Home'}
+                 {activeForum ? `f/${activeForum.name}` : 'Forums'}
                </h1>
              </div>
            )}
@@ -171,7 +171,7 @@ export const Forums: React.FC = () => {
            <div className="space-y-4">
              <div className="p-4 bg-[rgb(var(--color-primary))] text-white rounded-t-xl h-12"></div>
              <div className="px-4">
-                <h2 className="font-bold text-xl text-[rgb(var(--color-text))]">r/{activeForum.name}</h2>
+                <h2 className="font-bold text-xl text-[rgb(var(--color-text))]">f/{activeForum.name}</h2>
                 <p className="text-sm text-[rgb(var(--color-text-secondary))] mt-2">{activeForum.description}</p>
                 
                 <div className="mt-6 pt-6 border-t border-[rgb(var(--color-border))]">
@@ -252,7 +252,7 @@ const SidebarContent: React.FC<{
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition truncate ${activeForum?.id === f.id ? 'bg-[rgb(var(--color-surface-hover))] text-[rgb(var(--color-text))]' : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-hover))]'}`}
           >
              <div className="w-5 h-5 rounded-full bg-[rgb(var(--color-border))] flex-shrink-0" />
-             <span className="truncate">r/{f.name}</span>
+             <span className="truncate">f/{f.name}</span>
           </button>
         ))}
       </div>
@@ -369,7 +369,7 @@ const ForumFeed: React.FC<{
                         <div className="flex-1 p-3 pb-1 md:p-4">
                             {/* Meta Header */}
                             <div className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-secondary))] mb-2">
-                                {!activeForum && <span className="font-bold text-[rgb(var(--color-text))]">r/ForumName</span>}
+                                {!activeForum && <span className="font-bold text-[rgb(var(--color-text))]">f/ForumName</span>}
                                 <span className="hidden md:inline">Posted by u/{post.profiles.username}</span>
                                 <span className="md:hidden">u/{post.profiles.username}</span>
                                 <span>•</span>
@@ -564,12 +564,12 @@ const CreateForumModal: React.FC<{ onClose: () => void; onSuccess: () => void }>
                 <div>
                     <label className="block text-xs font-bold text-[rgb(var(--color-text-secondary))] mb-1">Name</label>
                     <div className="relative">
-                        <span className="absolute left-3 top-2 text-[rgb(var(--color-text-secondary))]">r/</span>
+                        <span className="absolute left-3 top-2 text-[rgb(var(--color-text-secondary))]">f/</span>
                         <input 
                             required 
                             className="w-full pl-7 pr-3 py-2 bg-[rgb(var(--color-background))] border border-[rgb(var(--color-border))] rounded-lg text-[rgb(var(--color-text))]" 
                             value={name} 
-                            onChange={e => setName(e.target.value.replace(/\s+/g, ''))} // No spaces in r/name
+                            onChange={e => setName(e.target.value.replace(/\s+/g, ''))} // No spaces in f/name
                             maxLength={20}
                         />
                     </div>
@@ -647,7 +647,7 @@ const CreatePostModal: React.FC<{ activeForum: Forum | null, forums: Forum[], on
                             className="w-1/2 p-2 bg-[rgb(var(--color-background))] border border-[rgb(var(--color-border))] rounded text-[rgb(var(--color-text))]"
                          >
                             <option value="" disabled>Choose a community</option>
-                            {forums.map(f => <option key={f.id} value={f.id}>r/{f.name}</option>)}
+                            {forums.map(f => <option key={f.id} value={f.id}>f/{f.name}</option>)}
                          </select>
                     </div>
 
