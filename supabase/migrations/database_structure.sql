@@ -221,9 +221,13 @@ CREATE TABLE public.posts (
   comment_count integer DEFAULT 0,
   like_count integer DEFAULT 0,
   group_id uuid,
+  repost_of uuid,
+  repost_count integer DEFAULT 0,
+  is_repost boolean DEFAULT false,
   CONSTRAINT posts_pkey PRIMARY KEY (id),
   CONSTRAINT posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
-  CONSTRAINT posts_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id)
+  CONSTRAINT posts_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id),
+  CONSTRAINT posts_repost_of_fkey FOREIGN KEY (repost_of) REFERENCES public.posts(id)
 );
 CREATE TABLE public.profiles (
   id uuid NOT NULL,
