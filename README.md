@@ -1,15 +1,15 @@
-# Liaotian 聊天
+# LiaoTian
 easy-to-host social platforms for everyone
 
 ```
-Current version: 1.1.0
+Current version: 1.1.0A
 ```
 
 ### What makes LiaoTian (LT) so special from already existing social media/networking platforms?
 
 This is a project where **anyone can easily fork/clone and deploy their own** versions of this platform. This GitHub repository provides a sort of boilerplate template for making your own such platforms, in a way.
 Unlike Mastodon and other open-source and decentralized or fediverse alternatives like this, the code is **compiled into a static site**, meaning it can be easily **hosted on most free hosting providers** for $0. All it needs is a database connection via Supabase. The content **behaves as if it is dynamic and real-time**, thanks to both Vercel (as what we have used) and Supabase's real-time API features.
-Also to get started on developing your own version of LiaoTian, it's much simpler than most other "templates" out there, since it uses **only 18 files** for its actual codebase (as of now).
+Also to get started on developing your own version of LiaoTian, it's much simpler than most other "templates" out there, since it uses only a small number of files for its actual codebase (as of now).
 
 ## 👤 Use LiaoTian itself
 If you just want to create an account on **Liaoverse** (our official deployment) then [sign up here](https://liaoverse.xyz/).
@@ -33,7 +33,7 @@ If you just want to create an account on **Liaoverse** (our official deployment)
 - [x] User following/followers
 - [x] User profiles via url parameters (e.g. [/?liaotian](https://liaoverse.xyz/?liaotian))
 - [x] Animated GIFs eligible for profile customization
-- [x] Upload files (max 10 MB)
+- [x] Upload files (max 10 MB, or as configured)
 - [x] Upload images, videos, documents (txt, pdf, doc/x)
 - [x] User settings (to change username, email, password, etc.)
 - [x] User verification requests
@@ -65,6 +65,7 @@ If you just want to create an account on **Liaoverse** (our official deployment)
 - [x] Special event/party mode (activated via App.tsx)
 - [x] Sending GIFs via Tenor (in Messages only)
 - [x] Reposting others' posts
+- [x] Custom badges
 - [ ] Posting long-form content, e.g. blogs
 - [ ] Hashtags
 - [ ] Custom sounds, e.g. notifications, clicks, etc.
@@ -83,7 +84,21 @@ If you just want to create an account on **Liaoverse** (our official deployment)
 - [ ] Forums need better UI/UX and allow media attachments
 - [ ] Reposts don't show up on Profiles
 - [ ] Message editing/deleting issues (locally works, not on DB)
-      
+```php
+Content Security Policy of your site blocks the use of 'eval' in JavaScript`
+The Content Security Policy (CSP) prevents the evaluation of arbitrary strings as JavaScript to make it more difficult for an attacker to inject unathorized code on your site.
+
+To solve this issue, avoid using eval(), new Function(), setTimeout([string], ...) and setInterval([string], ...) for evaluating strings.
+
+If you absolutely must: you can enable string evaluation by adding unsafe-eval as an allowed source in a script-src directive.
+
+⚠️ Allowing string evaluation comes at the risk of inline script injection.
+
+1 directive
+Source location	Directive	Status
+script-src	blocked
+Learn more: Content Security Policy - Eval
+```
 ---
 
 ## ⚖️ Legal information
