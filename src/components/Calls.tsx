@@ -53,11 +53,11 @@ export const Calls = () => {
   // Initialize Audio object once on mount
   useEffect(() => {
     // Incoming Ringtone
-    ringtoneRef.current = new Audio('https://mux8.com/assets/audio/theme01full.mp3'); 
+    ringtoneRef.current = new Audio('https://huanmux.github.io/assets/audio/theme01full.mp3'); 
     ringtoneRef.current.loop = true;
 
     // Outgoing CallTone
-    callToneRef.current = new Audio('https://mux8.com/assets/audio/theme02full.mp3');
+    callToneRef.current = new Audio('https://huanmux.github.io/assets/audio/theme02full.mp3');
     callToneRef.current.loop = true;
 
     return () => {

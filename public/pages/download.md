@@ -16,4 +16,4 @@ Unfortunately we don't natively support other operating systems yet, although we
 > Wanting to hide the fact that you use Liaoverse?
 > Just use incognito or private tab/window on your browser so that it doesn't save your history and auto-logs you out when you close it.
 
-For any other queries or suggestions, feel free to contact the [official LiaoTian account](https://liaotian.mux8.com/?liaotian) on Liaoverse itself.
+For any other queries or suggestions, feel free to contact the [official LiaoTian account](https://liaoverse.vercel.app/?liaotian) on Liaoverse itself.

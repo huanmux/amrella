@@ -230,7 +230,7 @@ export const Auth = () => {
         <div className="bg-white/95 backdrop-blur-2xl rounded-3xl shadow-2xl p-10 border border-white/40">
           <div className="text-center mb-10">
             <img 
-              src="https://mux8.com/assets/logo/liaotian-dragon.svg" 
+              src="https://huanmux.github.io/assets/logo/liaotian-dragon.svg" 
               alt="LiaoTian logo"
               className="mx-auto w-40 h-40 mb-1"
             />

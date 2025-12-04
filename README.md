@@ -102,7 +102,7 @@ Learn more: Content Security Policy - Eval
 ---
 
 ## ⚖️ Legal information
-[LiaoTian](https://github.com/huanmux/liaotian) is a digital product brand/project by [Mux ZiZhiZhe Co.](https://mux8.com/zzz) under [HuanMux](https://www.linkedin.com/company/huanmux).
+[LiaoTian](https://github.com/huanmux/liaotian) is a digital product brand/project by [Mux ZiZhiZhe Co.](https://huanmux.github.io/zzz) under [HuanMux](https://www.linkedin.com/company/huanmux).
 
 - [[📄 Terms of Service]](public/pages/terms-of-service.md) 
 - [[📄 Privacy Policy]](public/pages/privacy-policy.md)

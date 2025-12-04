@@ -27,7 +27,7 @@ const SVG_VIEWBOX = "0 0 784 1168";
 // --- SPECIAL EVENT CONFIG ---
 export const SPECIAL_EVENT_MODE = false;
 export const EVENT_MESSAGE = "⚡ SPECIAL EVENT (test): WELCOME TO THE LIAOVERSE! ENJOY THE VIBES! ⚡";
-const EVENT_THEMES = ["https://mux8.com/assets/audio/theme01.mp3", "https://mux8.com/assets/audio/theme02.mp3"];
+const EVENT_THEMES = ["https://huanmux.github.io/assets/audio/theme01.mp3", "https://huanmux.github.io/assets/audio/theme02.mp3"];
 
 const Main = () => {
   const [view, setView] = useState<ViewType>('feed');
