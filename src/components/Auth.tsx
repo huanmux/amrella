@@ -352,19 +352,19 @@ export const Auth = () => {
           >
             <defs>
               <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#ff6b6b" />
-                <stop offset="50%" stopColor="#ffa726" />
-                <stop offset="100%" stopColor="#ff8a65" />
+                <stop offset="0%" stopColor="#65f09d" />
+                <stop offset="50%" stopColor="#75ffa4" />
+                <stop offset="100%" stopColor="#24d1a7" />
               </linearGradient>
               <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#ff5252" />
-                <stop offset="50%" stopColor="#ff9800" />
-                <stop offset="100%" stopColor="#ff6b6b" />
+                <stop offset="0%" stopColor="#75ffa4" />
+                <stop offset="50%" stopColor="#65f09d" />
+                <stop offset="100%" stopColor="#24d1a7" />
               </linearGradient>
               <linearGradient id="grad3" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#ff3d00" />
-                <stop offset="50%" stopColor="#ff6d00" />
-                <stop offset="100%" stopColor="#ff9100" />
+                <stop offset="0%" stopColor="#24d1a7" />
+                <stop offset="50%" stopColor="#65f09d" />
+                <stop offset="100%" stopColor="#75ffa4" />
               </linearGradient>
             </defs>
             {/* Wave paths with classNames for CSS animation */}
