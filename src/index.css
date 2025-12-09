@@ -19,14 +19,13 @@ body {
   --color-primary: 101, 240, 157;
   --color-accent: 36, 209, 167;
   
-  /* Text/Background colors */
   --color-background: 255, 255, 255;
   --color-text: 17, 24, 39;
   --color-text-on-primary: 255, 255, 255;
   --color-surface: 255, 255, 255;
-  --color-border: 117, 255, 164;
-  --color-text-secondary: 117, 255, 164;
-  --color-surface-hover: 249, 255, 249;
+  --color-border: 229, 231, 235;
+  --color-text-secondary: 107, 114, 128;
+  --color-surface-hover: 249, 250, 251;
 }
 
 /* Dark Theme */
@@ -37,10 +36,10 @@ body {
   --color-background: 17, 24, 39;
   --color-text: 255, 255, 255;
   --color-text-on-primary: 0, 0, 0;
-  --color-surface: 31, 55, 31;
-  --color-border: 36, 209, 167;
+  --color-surface: 31, 41, 55;
+  --color-border: 55, 65, 81;
   --color-text-secondary: 156, 163, 175;
-  --color-surface-hover: 51, 85, 65;
+  --color-surface-hover: 51, 65, 85;
 }
 
 /* Cooper Black Theme: Neon Yellow/Lime Analogous Dark Theme */
