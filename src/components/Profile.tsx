@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Link as LinkIcon, Calendar, Grid, Image, Heart } from 'lucide-react';
+import { MapPin, Link as LinkIcon, Calendar, Grid, Image, Heart, Settings } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase, Post } from '../lib/supabase';
 
 const TABS = [
   { id: 'posts', label: 'Posts', icon: Grid },
@@ -9,7 +11,31 @@ const TABS = [
 ];
 
 export default function Profile() {
+  const { user, profile } = useAuth();
   const [activeTab, setActiveTab] = useState('posts');
+  const [userPosts, setUserPosts] = useState<Post[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
+
+  // Fetch User's Posts
+  useEffect(() => {
+    if (!user) return;
+    
+    async function fetchUserPosts() {
+      setLoadingPosts(true);
+      const { data } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('user_id', user!.id)
+        .order('created_at', { ascending: false });
+      
+      if (data) setUserPosts(data);
+      setLoadingPosts(false);
+    }
+
+    fetchUserPosts();
+  }, [user]);
+
+  if (!profile) return null;
 
   return (
     <motion.div 
@@ -19,17 +45,16 @@ export default function Profile() {
       className="pb-24"
     >
       {/* Banner */}
-      <div className="h-48 md:h-64 bg-gradient-to-br from-[rgb(var(--color-primary))] to-purple-600 relative overflow-hidden">
-        <motion.div 
-          initial={{ opacity: 0, scale: 1.1 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8 }}
-          className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=1200')] bg-cover bg-center mix-blend-overlay opacity-50"
-        />
+      <div className="h-48 md:h-64 bg-[rgb(var(--color-surface))] relative overflow-hidden">
+        {profile.banner_url ? (
+           <img src={profile.banner_url} className="w-full h-full object-cover" alt="Banner" />
+        ) : (
+           <div className="w-full h-full bg-gradient-to-br from-[rgb(var(--color-primary))] to-[rgb(var(--color-accent))] opacity-30" />
+        )}
       </div>
 
       <div className="px-5 relative">
-        {/* Avatar */}
+        {/* Avatar & Action Button */}
         <div className="flex justify-between items-end -mt-16 mb-4">
            <motion.div 
              initial={{ scale: 0 }}
@@ -37,38 +62,48 @@ export default function Profile() {
              transition={{ type: "spring", bounce: 0.4, delay: 0.2 }}
              className="w-32 h-32 rounded-full border-4 border-[rgb(var(--color-background))] bg-[rgb(var(--color-surface))] overflow-hidden shadow-lg"
            >
-             <img src="https://i.pravatar.cc/300?u=me" alt="Profile" className="w-full h-full object-cover" />
+             <img 
+               src={profile.avatar_url || `https://i.pravatar.cc/300?u=${profile.username}`} 
+               alt="Profile" 
+               className="w-full h-full object-cover" 
+             />
            </motion.div>
            
            <motion.button 
              whileHover={{ scale: 1.05 }}
              whileTap={{ scale: 0.95 }}
-             className="mb-2 px-6 py-2.5 rounded-full bg-[rgb(var(--color-text))] text-[rgb(var(--color-background))] font-bold text-sm shadow-lg"
+             className="mb-2 px-6 py-2.5 rounded-full bg-[rgb(var(--color-surface))] border border-[rgba(var(--color-border),0.5)] text-[rgb(var(--color-text))] font-bold text-sm shadow-sm flex items-center gap-2"
            >
-             Edit Profile
+             <Settings size={16} /> Edit Profile
            </motion.button>
         </div>
 
         {/* Info */}
         <div className="space-y-3 mb-8">
           <div>
-            <h1 className="text-2xl font-black">Huan Mux</h1>
-            <p className="text-[rgb(var(--color-text-secondary))]">@huanmux</p>
+            <div className="flex items-center gap-2">
+               <h1 className="text-2xl font-black">{profile.display_name}</h1>
+               {profile.verified && <span className="text-blue-400">✓</span>}
+            </div>
+            <p className="text-[rgb(var(--color-text-secondary))]">@{profile.username}</p>
           </div>
           
-          <p className="text-[rgb(var(--color-text))] max-w-lg leading-relaxed">
-            Digital architect & UI enthusiast. Building the future of social interaction at Gazebo. 🏗️ ✨
+          <p className="text-[rgb(var(--color-text))] max-w-lg leading-relaxed whitespace-pre-wrap">
+            {profile.bio || "No bio yet."}
           </p>
 
           <div className="flex flex-wrap gap-4 text-sm text-[rgb(var(--color-text-secondary))]">
-            <div className="flex items-center gap-1"><MapPin size={16} /> Dhaka, BD</div>
-            <div className="flex items-center gap-1"><LinkIcon size={16} /> <a href="#" className="text-[rgb(var(--color-primary))] hover:underline">huanmux.dev</a></div>
-            <div className="flex items-center gap-1"><Calendar size={16} /> Joined March 2021</div>
+            {/* Hardcoded location for now as it's not in schema yet */}
+            <div className="flex items-center gap-1"><MapPin size={16} /> Earth</div>
+            {profile.bio_link && (
+               <div className="flex items-center gap-1"><LinkIcon size={16} /> <a href={profile.bio_link} target="_blank" className="text-[rgb(var(--color-primary))] hover:underline truncate max-w-[200px]">{profile.bio_link}</a></div>
+            )}
+            <div className="flex items-center gap-1"><Calendar size={16} /> Joined {new Date(profile.created_at).toLocaleDateString()}</div>
           </div>
 
           <div className="flex gap-4 pt-2">
-            <div><span className="font-bold text-[rgb(var(--color-text))]">542</span> <span className="text-[rgb(var(--color-text-secondary))]">Following</span></div>
-            <div><span className="font-bold text-[rgb(var(--color-text))]">12.5k</span> <span className="text-[rgb(var(--color-text-secondary))]">Followers</span></div>
+            <div><span className="font-bold text-[rgb(var(--color-text))]">0</span> <span className="text-[rgb(var(--color-text-secondary))]">Following</span></div>
+            <div><span className="font-bold text-[rgb(var(--color-text))]">0</span> <span className="text-[rgb(var(--color-text-secondary))]">Followers</span></div>
           </div>
         </div>
 
@@ -107,11 +142,20 @@ export default function Profile() {
                     exit={{ opacity: 0, y: -10 }}
                     className="grid grid-cols-3 gap-1"
                 >
-                    {[...Array(9)].map((_, i) => (
-                        <div key={i} className="aspect-square bg-[rgb(var(--color-surface))] rounded-md overflow-hidden hover:opacity-90 cursor-pointer">
-                             <img src={`https://picsum.photos/400?random=${i + (activeTab === 'media' ? 10 : 0)}`} alt="post" className="w-full h-full object-cover" />
-                        </div>
+                    {activeTab === 'posts' && userPosts.map((post) => (
+                       <div key={post.id} className="aspect-square bg-[rgb(var(--color-surface))] overflow-hidden cursor-pointer border border-[rgba(var(--color-border),0.2)]">
+                           {post.media_url ? (
+                             <img src={post.media_url} alt="post" className="w-full h-full object-cover" />
+                           ) : (
+                             <div className="w-full h-full p-2 text-[10px] flex items-center justify-center text-center text-[rgb(var(--color-text-secondary))]">
+                                {post.content.slice(0, 50)}...
+                             </div>
+                           )}
+                       </div>
                     ))}
+                    {activeTab === 'posts' && userPosts.length === 0 && (
+                        <div className="col-span-3 text-center py-10 text-[rgb(var(--color-text-secondary))]">No posts yet.</div>
+                    )}
                 </motion.div>
             </AnimatePresence>
         </div>
