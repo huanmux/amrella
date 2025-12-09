@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, useLocation, Link } from 'react-router-do
 import { AnimatePresence, motion } from 'framer-motion';
 import { Home, User, MessageSquare, Plus, LogOut } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import Auth from './components/Auth';
+import { Auth } from './components/Auth';
 import Feed from './components/Feed';
 import Profile from './components/Profile';
 import Messages from './components/Messages';
