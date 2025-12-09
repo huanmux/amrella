@@ -230,11 +230,11 @@ export const Auth = () => {
         <div className="bg-white/95 backdrop-blur-2xl rounded-3xl shadow-2xl p-10 border border-white/40">
           <div className="text-center mb-10">
             <img 
-              src="https://huanmux.github.io/assets/logo/liaotian-dragon.svg" 
-              alt="LiaoTian logo"
+              src="https://huanmux.github.io/assets/logo/amrella-mango.svg" 
+              alt="Amrella logo"
               className="mx-auto w-40 h-40 mb-1"
             />
-            <p className="text-gray-700 text-xl font-bold">Liaoverse</p>
+            <p className="text-gray-700 text-xl font-bold">Amrella</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -312,7 +312,7 @@ export const Auth = () => {
               ) : (
                 <LogIn size={28} />
               )}
-              {isLoading ? 'Loading...' : (isSignUp ? 'Join Liaoverse' : 'Enter Liaoverse')}
+              {isLoading ? 'Loading...' : (isSignUp ? 'Join Amrella' : 'Enter Amrella')}
             </button>
           </form>
 

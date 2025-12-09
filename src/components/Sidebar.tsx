@@ -33,11 +33,11 @@ export const LeftSidebar: React.FC<SidebarProps> = ({ show, onClose }) => {
         
         {/* Header Section */}
         <div className="p-8 pb-6">
-          <h1 className="text-3xl font-black text-[rgb(var(--color-primary))] tracking-tighter">Liaoverse</h1>
+          <h1 className="text-3xl font-black text-[rgb(var(--color-primary))] tracking-tighter">Amrella</h1>
           <div className="flex items-center gap-2 mt-1">
             <span className="text-sm font-semibold text-[rgb(var(--color-text))]">running LiaoTian</span>
           </div>
-          <p className="text-xs text-[rgb(var(--color-text-secondary))] mt-1 font-mono">v1.1.X</p>
+          <p className="text-xs text-[rgb(var(--color-text-secondary))] mt-1 font-mono">v1.1.0A</p>
         </div>
 
         <div className="h-px bg-[rgb(var(--color-border))] mx-6 mb-4"></div>
@@ -81,7 +81,7 @@ export const LeftSidebar: React.FC<SidebarProps> = ({ show, onClose }) => {
           >
             <div className="flex items-center gap-3">
               <Download size={20} className="text-[rgb(var(--color-text-secondary))] group-hover:text-orange-500 transition-colors" />
-              <span className="font-medium">Download Liaoverse</span>
+              <span className="font-medium">Download Amrella</span>
             </div>
           </button>
         </nav>

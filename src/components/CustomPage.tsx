@@ -28,17 +28,17 @@ export const CustomPage = ({ slug }: CustomPageProps) => {
       setLoading(false);
     };
 
-    const fetchLiaotianProfile = async () => {
+    const fetchAmrellaProfile = async () => {
       const { data } = await supabase
         .from('profiles')
         .select('*')
-        .eq('username', 'liaotian')
+        .eq('username', 'amrella')
         .single();
       if (data) setProfile(data);
     };
 
     fetchPage();
-    fetchLiaotianProfile();
+    fetchAmrellaProfile();
   }, [slug]);
 
   if (loading) {
@@ -64,18 +64,18 @@ export const CustomPage = ({ slug }: CustomPageProps) => {
         <div className="bg-[rgb(var(--color-surface))] rounded-2xl p-6 border border-[rgb(var(--color-border))] shadow-sm">
           <div className="flex items-center gap-4">
             <img
-              src={profile?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=liaotian`}
-              alt="liaotian"
+              src={profile?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=no_spaces`}
+              alt="amrella"
               className="w-16 h-16 rounded-full border-2 border-[rgb(var(--color-primary))]"
             />
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold">{profile?.display_name || 'LiaoTian'}</h2>
+                <h2 className="text-xl font-bold">{profile?.display_name || 'Amrella'}</h2>
                 {profile?.verified && <BadgeCheck size={20} className="text-[rgb(var(--color-accent))]" />}
               </div>
-              <p className="text-[rgb(var(--color-text-secondary))]">@{profile?.username || 'liaotian'}</p>
+              <p className="text-[rgb(var(--color-text-secondary))]">@{profile?.username || 'amrella'}</p>
               <p className="text-sm text-[rgb(var(--color-text-secondary))] mt-1">
-                <a href="/" className="text-[rgb(var(--color-accent))]">Sign Up</a> for LiaoTian
+                <a href="/" className="text-[rgb(var(--color-accent))]">Sign Up</a> for Amrella
               </p>
             </div>
           </div>

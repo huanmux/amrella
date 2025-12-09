@@ -1,6 +1,6 @@
-# Privacy Policy for LiaoTian
+# Privacy Policy for Amrella
 ### Effective Date: November 10, 2025
-This Privacy Policy explains how your personal information is collected, used, and disclosed when using LiaoTian (the "Service").
+This Privacy Policy explains how your personal information is collected, used, and disclosed when using Amrella (the "Service").
 
 We respect your privacy and are committed to protecting it.
 

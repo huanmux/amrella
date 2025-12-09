@@ -239,7 +239,7 @@ CREATE TABLE public.profiles (
   banner_url text DEFAULT ''::text,
   verified boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT now(),
-  theme text DEFAULT 'lt-classic'::text,
+  theme text DEFAULT 'amrella-classic'::text,
   verification_request text DEFAULT ''::text,
   last_seen timestamp with time zone,
   bio_link text DEFAULT ''::text,

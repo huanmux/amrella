@@ -1,6 +1,6 @@
-# Terms of Service for LiaoTian
+# Terms of Service for Amrella
 ### Effective Date: November 10, 2025
-These Terms of Service ("Terms") govern your access to and use of LiaoTian (the "Service"), a self-hosted [social platform](https://liaoverse.vercel.app/) operated via deployments from the GitHub repository at [https://github.com/huanmux/liaotian](https://github.com/huanmux/liaotian). The Service is provided by the instance operator ("we," "us," or "our"), who has deployed this instance using Vercel and Supabase.
+These Terms of Service ("Terms") govern your access to and use of Amrella (the "Service"), a self-hosted [social platform](https://amrella.vercel.app/) operated via deployments from the GitHub repository at [https://github.com/huanmux/liaotian](https://github.com/huanmux/liaotian). The Service is provided by the instance operator ("we," "us," or "our"), who has deployed this instance using Vercel and Supabase.
 
 By accessing or using the Service, you agree to be bound by these Terms. If you do not agree, do not use the Service.
 
