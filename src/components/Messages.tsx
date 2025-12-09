@@ -1,76 +1,91 @@
-import { motion } from 'framer-motion'
-import { Search, Phone, Video, MoreVertical } from 'lucide-react'
+import React from 'react';
+import { motion } from 'framer-motion';
+import { Search, Edit } from 'lucide-react';
 
-const chats = Array(10).fill(null).map((_, i) => ({
-  id: i,
-  name: 'Friend ' + (i + 1),
-  lastMsg: 'Yo! Check this out',
-  time: '5 min',
-  unread: i < 3 ? i + 1 : 0,
-}))
+const MESSAGES = [
+  { id: 1, name: 'Design Team', message: 'Hey! Are we still on for the review?', time: '2m', unread: 2 },
+  { id: 2, name: 'Sarah Jen', message: 'Sent you the files.', time: '1h', unread: 0 },
+  { id: 3, name: 'Mom', message: 'Call me when you can.', time: '3h', unread: 1 },
+  { id: 4, name: 'Project X', message: 'New deployment is live 🚀', time: '1d', unread: 0 },
+  { id: 5, name: 'Alex Rivier', message: 'Thanks for the help!', time: '2d', unread: 0 },
+];
 
 export default function Messages() {
   return (
-    <div className="max-w-5xl mx-auto flex h-[calc(100vh-5rem)]">
-      {/* Chat List */}
-      <motion.div
-        initial={{ x: -300, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        className="w-96 border-r border-[rgb(var(--color-border))] flex flex-col"
-      >
-        <div className="p-6 border-b border-[rgb(var(--color-border))]">
-          <h2 className="text-2xl font-bold">Messages</h2>
-          <div className="mt-4 relative">
-            <Search className="absolute left-4 top-3 text-[rgb(var(--color-text-secondary))]" size={20} />
-            <input
-              type="text"
-              placeholder="Search chats..."
-              className="w-full pl-12 pr-4 py-3 rounded-2xl bg-[rgb(var(--color-surface-hover))] focus:outline-none focus:ring-4 ring-[rgba(var(--color-primary),0.3)] transition-all"
-            />
-          </div>
+    <motion.div
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      className="h-full flex flex-col"
+    >
+      <div className="p-4 sticky top-0 bg-[rgb(var(--color-background))] z-10 border-b border-[rgba(var(--color-border),0.5)]">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold">Messages</h1>
+          <button className="p-2 rounded-full bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))] hover:bg-[rgba(var(--color-primary),0.2)] transition-colors">
+            <Edit size={20} />
+          </button>
         </div>
-
-        <div className="flex-1 overflow-y-auto">
-          {chats.map((chat) => (
-            <motion.div
-              key={chat.id}
-              whileHover={{ backgroundColor: 'rgb(var(--color-surface-hover))' }}
-              className="flex items-center gap-4 p-4 cursor-pointer border-b border-[rgb(var(--color-border))]/30"
-            >
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[rgb(var(--color-primary))] to-[rgb(var(--color-accent))]" />
-              <div className="flex-1">
-                <div className="flex justify-between">
-                  <h4 className="font-semibold">{chat.name}</h4>
-                  <span className="text-sm text-[rgb(var(--color-text-secondary))]">{chat.time}</span>
-                </div>
-                <p className="text-sm text-[rgb(var(--color-text-secondary))] truncate">{chat.lastMsg}</p>
-              </div>
-              {chat.unread > 0 && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="w-6 h-6 rounded-full bg-[rgb(var(--color-primary))] text-xs flex items-center justify-center text-[rgb(var(--color-text-on-primary))] font-bold"
-                >
-                  {chat.unread}
-                </motion.div>
-              )}
-            </motion.div>
-          ))}
+        
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[rgb(var(--color-text-secondary))]" size={18} />
+          <input 
+            type="text" 
+            placeholder="Search DMs" 
+            className="w-full pl-10 pr-4 py-2.5 rounded-full bg-[rgb(var(--color-surface))] border border-[rgba(var(--color-border),0.5)] focus:outline-none focus:border-[rgb(var(--color-primary))] transition-colors"
+          />
         </div>
-      </motion.div>
-
-      {/* Chat Window Placeholder */}
-      <div className="flex-1 flex items-center justify-center">
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="text-center"
-        >
-          <div className="w-32 h-32 mx-auto mb-8 rounded-full bg-gradient-to-br from-[rgb(var(--color-primary))] to-[rgb(var(--color-accent))] opacity-20 blur-3xl" />
-          <h3 className="text-3xl font-bold mb-4">Select a chat to start messaging</h3>
-          <p className="text-[rgb(var(--color-text-secondary))]">Your messages are end-to-end encrypted</p>
-        </motion.div>
       </div>
-    </div>
-  )
+
+      <div className="flex-1 overflow-y-auto p-2 pb-24">
+        <motion.ul
+          initial="hidden"
+          animate="visible"
+          variants={{
+            hidden: { opacity: 0 },
+            visible: {
+              opacity: 1,
+              transition: { staggerChildren: 0.05 }
+            }
+          }}
+          className="space-y-1"
+        >
+          {MESSAGES.map((msg) => (
+            <motion.li
+              key={msg.id}
+              variants={{
+                hidden: { x: -20, opacity: 0 },
+                visible: { x: 0, opacity: 1 }
+              }}
+              whileHover={{ scale: 1.01, backgroundColor: 'rgba(var(--color-surface-hover), 1)' }}
+              whileTap={{ scale: 0.98 }}
+              className="flex items-center gap-4 p-3 rounded-2xl cursor-pointer transition-colors"
+            >
+              <div className="relative">
+                <img src={`https://i.pravatar.cc/150?u=${msg.name}`} className="w-12 h-12 rounded-full object-cover bg-gray-200" alt={msg.name} />
+                {msg.unread > 0 && (
+                   <div className="absolute -top-1 -right-1 w-5 h-5 bg-[rgb(var(--color-primary))] border-2 border-[rgb(var(--color-background))] rounded-full flex items-center justify-center text-[10px] font-bold text-[rgb(var(--color-text-on-primary))]">
+                     {msg.unread}
+                   </div>
+                )}
+              </div>
+              
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-baseline mb-0.5">
+                  <h3 className={`text-sm truncate ${msg.unread ? 'font-bold text-[rgb(var(--color-text))]' : 'font-medium text-[rgb(var(--color-text))]'}`}>
+                    {msg.name}
+                  </h3>
+                  <span className={`text-xs ${msg.unread ? 'text-[rgb(var(--color-primary))] font-bold' : 'text-[rgb(var(--color-text-secondary))]'}`}>
+                    {msg.time}
+                  </span>
+                </div>
+                <p className={`text-xs truncate ${msg.unread ? 'text-[rgb(var(--color-text))] font-medium' : 'text-[rgb(var(--color-text-secondary))]'}`}>
+                  {msg.message}
+                </p>
+              </div>
+            </motion.li>
+          ))}
+        </motion.ul>
+      </div>
+    </motion.div>
+  );
 }
